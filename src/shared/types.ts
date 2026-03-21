@@ -1,4 +1,4 @@
-// ===== Twitter 类型 =====
+// ===== Twitter Types =====
 
 export interface XCookies {
   ct0: string
@@ -28,7 +28,7 @@ export interface XFriendshipStatus {
   connections: ('following' | 'followed_by' | 'blocking' | 'muting' | 'none')[]
 }
 
-// ===== Step 协议类型 =====
+// ===== Step Protocol Types =====
 
 export interface StepConfig {
   type: 'click' | 'type' | 'press' | 'scroll'
@@ -76,7 +76,7 @@ export interface StepNextMessage {
   timeout?: number
 }
 
-// ===== 消息类型 =====
+// ===== Message Types =====
 
 export type MessageType =
   | 'GET_COOKIES'
@@ -98,7 +98,7 @@ export interface ExtResponse<T = unknown> {
   error?: string
 }
 
-// ===== 存储 Key =====
+// ===== Storage Keys =====
 
 export const STORAGE_KEYS = {
   xsocialToken: 'xsocial_token',
@@ -110,13 +110,13 @@ export const STORAGE_KEYS = {
   deviceName: 'device_name',
 } as const
 
-// ===== 取关任务类型 =====
+// ===== Unfollow Task Types =====
 
 export interface UnfollowConfig {
-  delayMin: number      // ms, 取关间隔最小
-  delayMax: number      // ms, 取关间隔最大
-  hourlyLimit: number   // 每小时上限
-  dailyLimit: number    // 每日上限
+  delayMin: number      // ms, min unfollow interval
+  delayMax: number      // ms, max unfollow interval
+  hourlyLimit: number   // hourly limit
+  dailyLimit: number    // daily limit
 }
 
 export interface NonFollowerEntry {

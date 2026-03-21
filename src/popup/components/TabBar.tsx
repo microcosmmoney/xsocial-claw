@@ -9,9 +9,9 @@ interface TabBarProps {
 }
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'current', label: '任务' },
-  { id: 'today', label: '今日' },
-  { id: 'history', label: '历史' },
+  { id: 'current', label: 'Tasks' },
+  { id: 'today', label: 'Today' },
+  { id: 'history', label: 'History' },
   { id: 'kpi', label: 'KPI' },
 ]
 

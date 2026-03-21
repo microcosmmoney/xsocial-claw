@@ -1,7 +1,7 @@
 import type { ExtMessage, ExtResponse } from './types'
 
 /**
- * 从 popup/content script 向 background 发消息
+ * Send message from popup/content script to background
  */
 export async function sendToBackground<T = unknown>(
   message: ExtMessage
@@ -10,7 +10,7 @@ export async function sendToBackground<T = unknown>(
 }
 
 /**
- * 向当前活跃的 x.com tab 发消息
+ * Send message to the currently active x.com tab
  */
 export async function sendToContent<T = unknown>(
   message: ExtMessage
@@ -24,7 +24,7 @@ export async function sendToContent<T = unknown>(
 }
 
 /**
- * 在 background 中注册消息监听器
+ * Register message listener in background
  */
 export function onMessage(
   handler: (

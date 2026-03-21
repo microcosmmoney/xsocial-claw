@@ -1,16 +1,16 @@
 /**
- * 取关调度器 — 回关检查核心执行引擎
+ * Unfollow Scheduler — Follow-check execution engine
  *
- * 支持两种模式:
- *   方案A (api): 用 friends/ids + followers/ids 批量发现, unfollowUser API 取关
- *   方案B (page): 在"正在关注"页面滚动, 检测"关注了你"标签, 模拟真人取关
+ * Supports two modes:
+ *   Mode A (api): Batch discovery via friends/ids + followers/ids, unfollow via API
+ *   Mode B (page): Scroll "Following" page, detect "Follows you" label, simulate human unfollow
  *
- * 安全策略:
- *   - 取关间隔 30-90 秒 (高斯随机)
- *   - 每小时上限 30, 每日上限 200 (用户可调低)
- *   - 连续 3 次错误自动暂停
- *   - 遇 403 立即停止
- *   - 仅活跃时段 (8:00-23:00) 运行
+ * Safety measures:
+ *   - Unfollow interval 30-90s (Gaussian random)
+ *   - Hourly limit 30, daily limit 200 (user adjustable)
+ *   - Auto-pause after 3 consecutive errors
+ *   - Stop immediately on 403
+ *   - Only run during active hours (8:00-23:00)
  */
 
 import { XSOCIAL_API, UNFOLLOW_LIMITS } from '@shared/constants'
@@ -20,39 +20,39 @@ import { getXCookies, getFollowingIds, getFollowerIds, unfollowUser } from './x-
 import { gaussianDelay, humanDelay, isActiveHours, sleep } from '@utils/delay'
 import { logger } from '@utils/logger'
 
-// ===== 内部状态 =====
+// ===== Internal State =====
 
 let currentTask: UnfollowTaskState | null = null
 let isRunning = false
 let stopRequested = false
 
-// ===== 公共 API =====
+// ===== Public API =====
 
-/** 获取当前任务状态 */
+/** Get current task status */
 export function getUnfollowStatus(): UnfollowTaskState | null {
   return currentTask
 }
 
-/** 方案A: API 批量扫描发现非回关者 */
+/** Mode A: API batch scan to find non-followers */
 export async function scanViaApi(taskId: string, xScreenName: string, token: string): Promise<{
   nonFollowers: NonFollowerEntry[]
   totalFollowing: number
   totalFollowers: number
 }> {
   const cookies = await getXCookies()
-  if (!cookies) throw new Error('未登录 X，请先在浏览器打开 x.com 并登录')
+  if (!cookies) throw new Error('Not logged in to X. Please open x.com and sign in first')
 
-  logger.info('[Unfollow] 方案A扫描开始: 拉取关注/粉丝 ID...')
+  logger.info('[Unfollow] Mode A scan started: fetching following/follower IDs...')
 
   const followingIds = await getFollowingIds(cookies, (count) => {
-    logger.info(`[Unfollow] 已获取 ${count} 个关注 ID`)
+    logger.info(`[Unfollow] Fetched ${count} following IDs`)
   })
 
   const followerIds = await getFollowerIds(cookies, (count) => {
-    logger.info(`[Unfollow] 已获取 ${count} 个粉丝 ID`)
+    logger.info(`[Unfollow] Fetched ${count} follower IDs`)
   })
 
-  // 集合对比: 关注了但没被回关
+  // Set comparison: following but not followed back
   const followerSet = new Set(followerIds)
   const nonFollowerIds = followingIds.filter(id => !followerSet.has(id))
 
@@ -60,9 +60,9 @@ export async function scanViaApi(taskId: string, xScreenName: string, token: str
     userId: id,
   }))
 
-  logger.info(`[Unfollow] 扫描完成: 关注${followingIds.length}, 粉丝${followerIds.length}, 未回关${nonFollowers.length}`)
+  logger.info(`[Unfollow] Scan complete: following ${followingIds.length}, followers ${followerIds.length}, non-followers ${nonFollowers.length}`)
 
-  // 上报服务端
+  // Report to server
   await reportScan(token, taskId, nonFollowers, followingIds.length, followerIds.length)
 
   return {
@@ -72,7 +72,7 @@ export async function scanViaApi(taskId: string, xScreenName: string, token: str
   }
 }
 
-/** 方案A: 启动/恢复 API 模式取关 */
+/** Mode A: Start/resume API unfollow */
 export async function startApiUnfollow(
   taskId: string,
   nonFollowers: NonFollowerEntry[],
@@ -81,12 +81,12 @@ export async function startApiUnfollow(
   token: string
 ): Promise<void> {
   if (isRunning) {
-    logger.warn('[Unfollow] 已有任务在运行')
+    logger.warn('[Unfollow] A task is already running')
     return
   }
 
   const cookies = await getXCookies()
-  if (!cookies) throw new Error('未登录 X')
+  if (!cookies) throw new Error('Not logged in to X')
 
   currentTask = {
     taskId,
@@ -107,32 +107,32 @@ export async function startApiUnfollow(
   isRunning = true
   stopRequested = false
 
-  logger.info(`[Unfollow] API模式启动, 从第 ${startIndex} 个开始, 共 ${nonFollowers.length} 个目标`)
+  logger.info(`[Unfollow] API mode started, from index ${startIndex} , total ${nonFollowers.length} targets`)
 
   const pendingActions: UnfollowAction[] = []
 
   try {
     for (let i = startIndex; i < nonFollowers.length; i++) {
       if (stopRequested) {
-        logger.info('[Unfollow] 收到停止指令')
+        logger.info('[Unfollow] Stop signal received')
         break
       }
 
-      // 活跃时段检查
+      // Active hours check
       if (!isActiveHours()) {
-        logger.info('[Unfollow] 非活跃时段, 暂停')
+        logger.info('[Unfollow] Outside active hours, pausing')
         currentTask.status = 'paused'
         break
       }
 
-      // 频率检查
+      // Rate limit check
       if (currentTask.hourlyCount >= config.hourlyLimit) {
-        logger.info(`[Unfollow] 达到每小时上限 ${config.hourlyLimit}`)
+        logger.info(`[Unfollow] Reached hourly limit ${config.hourlyLimit}`)
         currentTask.status = 'paused'
         break
       }
       if (currentTask.dailyCount >= config.dailyLimit) {
-        logger.info(`[Unfollow] 达到每日上限 ${config.dailyLimit}`)
+        logger.info(`[Unfollow] Reached daily limit ${config.dailyLimit}`)
         currentTask.status = 'paused'
         break
       }
@@ -155,44 +155,44 @@ export async function startApiUnfollow(
         currentTask.hourlyCount++
         currentTask.dailyCount++
         currentTask.lastProcessedIndex = i + 1
-        logger.info(`[Unfollow] ✓ 取关 ${target.screenName || target.userId} (${currentTask.unfollowedCount}/${nonFollowers.length})`)
+        logger.info(`[Unfollow] Unfollowed ${target.screenName || target.userId} (${currentTask.unfollowedCount}/${nonFollowers.length})`)
       } else {
         currentTask.failedCount++
         currentTask.lastProcessedIndex = i + 1
-        logger.warn(`[Unfollow] ✗ 取关失败 ${target.userId}: ${result.error}`)
+        logger.warn(`[Unfollow] Unfollow failed ${target.userId}: ${result.error}`)
 
-        // 403 → 立即停止
+        // 403 -> stop immediately
         if (result.error?.includes('403')) {
-          logger.error('[Unfollow] 403 Forbidden — 立即停止')
+          logger.error('[Unfollow] 403 Forbidden - stopping immediately')
           currentTask.status = 'paused'
           break
         }
       }
 
-      // 定期上报进度
+      // Periodic progress report
       if (pendingActions.length >= UNFOLLOW_LIMITS.progressReportInterval) {
         await reportProgress(token, taskId, currentTask, pendingActions)
         pendingActions.length = 0
       }
 
-      // 保存到 storage (恢复用)
+      // Save to storage (for recovery)
       await saveState()
 
-      // 人类延迟
+      // Human delay
       if (i < nonFollowers.length - 1) {
         await humanDelay(config.delayMin, config.delayMax)
       }
     }
 
-    // 全部完成
+    // All done
     if (currentTask.lastProcessedIndex >= nonFollowers.length) {
       currentTask.status = 'completed'
     }
   } catch (err: any) {
-    logger.error('[Unfollow] 执行异常:', err)
+    logger.error('[Unfollow] Execution error:', err)
     currentTask.status = 'error'
   } finally {
-    // 上报剩余进度
+    // Report remaining progress
     if (pendingActions.length > 0) {
       await reportProgress(token, taskId, currentTask, pendingActions)
     }
@@ -201,7 +201,7 @@ export async function startApiUnfollow(
   }
 }
 
-/** 暂停任务 */
+/** Pause task */
 export function pauseUnfollow(): void {
   stopRequested = true
   if (currentTask) {
@@ -209,7 +209,7 @@ export function pauseUnfollow(): void {
   }
 }
 
-/** 恢复任务状态 (从 chrome.storage) */
+/** Restore task state (from chrome.storage) */
 export async function restoreState(): Promise<UnfollowTaskState | null> {
   try {
     const result = await chrome.storage.local.get(STORAGE_KEYS.unfollowTask)
@@ -224,7 +224,7 @@ export async function restoreState(): Promise<UnfollowTaskState | null> {
   return null
 }
 
-// ===== 内部方法 =====
+// ===== Internal Methods =====
 
 async function saveState(): Promise<void> {
   if (currentTask) {
@@ -253,7 +253,7 @@ async function reportScan(
       body: JSON.stringify({ taskId, nonFollowers, totalFollowing, totalFollowers }),
     })
   } catch (err) {
-    logger.warn('[Unfollow] 上报扫描结果失败:', err)
+    logger.warn('[Unfollow] Failed to report scan results:', err)
   }
 }
 
@@ -280,6 +280,6 @@ async function reportProgress(
       }),
     })
   } catch (err) {
-    logger.warn('[Unfollow] 上报进度失败:', err)
+    logger.warn('[Unfollow] Failed to report progress:', err)
   }
 }

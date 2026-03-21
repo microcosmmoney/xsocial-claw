@@ -1,8 +1,8 @@
 import { RATE_LIMITS } from '@shared/constants'
 
 /**
- * 高斯随机数 (Box-Muller 变换)
- * 产生均值 mean, 标准差 stdDev 的正态分布随机数
+ * Gaussian random number (Box-Muller transform)
+ * Generates a normally distributed random number with given mean and stdDev
  */
 function gaussianRandom(mean: number, stdDev: number): number {
   const u1 = Math.random()
@@ -12,8 +12,8 @@ function gaussianRandom(mean: number, stdDev: number): number {
 }
 
 /**
- * 高斯延迟 — 比均匀随机更像人类行为
- * 大多数延迟集中在中间值附近，偶尔有较长等待
+ * Gaussian delay — more human-like than uniform random
+ * Most delays cluster near the midpoint, with occasional longer waits
  */
 export function gaussianDelay(minMs: number, maxMs: number): number {
   const mean = (minMs + maxMs) / 2
@@ -24,54 +24,54 @@ export function gaussianDelay(minMs: number, maxMs: number): number {
 }
 
 /**
- * 模拟人类等待 — 包含 5% "走神" 概率
+ * Simulate human waiting — includes 5% "distraction" probability
  */
 export async function humanDelay(minMs: number, maxMs: number): Promise<void> {
   let delay = gaussianDelay(minMs, maxMs)
 
-  // 5% 概率走神 (模拟人类切换其他 tab、看手机等)
+  // 5% chance of distraction (simulates switching tabs, checking phone, etc.)
   if (Math.random() < RATE_LIMITS.distractionChance) {
     const distraction = gaussianDelay(
       RATE_LIMITS.distractionMin,
       RATE_LIMITS.distractionMax
     )
     delay += distraction
-    console.log(`[xSocial] 走神 +${(distraction / 1000).toFixed(1)}s`)
+    console.log(`[xSocial] distraction +${(distraction / 1000).toFixed(1)}s`)
   }
 
   await sleep(delay)
 }
 
 /**
- * 简单 sleep
+ * Simple sleep
  */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**
- * 关注操作延迟 (60-180 秒 + 走神)
+ * Follow action delay (60-180 seconds + distraction)
  */
 export async function followDelay(): Promise<void> {
   await humanDelay(RATE_LIMITS.followDelayMin, RATE_LIMITS.followDelayMax)
 }
 
 /**
- * 读取操作延迟 (3-8 秒)
+ * Read operation delay (3-8 seconds)
  */
 export async function readDelay(): Promise<void> {
   await sleep(gaussianDelay(RATE_LIMITS.readDelayMin, RATE_LIMITS.readDelayMax))
 }
 
 /**
- * 批次间休息 (5-10 分钟)
+ * Batch rest interval (5-10 minutes)
  */
 export async function batchRest(): Promise<void> {
   await sleep(gaussianDelay(RATE_LIMITS.batchRestMin, RATE_LIMITS.batchRestMax))
 }
 
 /**
- * 检查当前是否在活跃时段内
+ * Check if current time is within active hours
  */
 export function isActiveHours(start = RATE_LIMITS.activeHoursStart, end = RATE_LIMITS.activeHoursEnd): boolean {
   const hour = new Date().getHours()

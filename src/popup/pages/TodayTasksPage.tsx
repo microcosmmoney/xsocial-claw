@@ -14,7 +14,7 @@ export default function TodayTasksPage({ tasks }: Props) {
         padding: 40, color: '#aaa',
       }}>
         <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>&#128203;</div>
-        <p style={{ fontSize: 13 }}>今日暂无完成的任务</p>
+        <p style={{ fontSize: 13 }}>No completed tasks today</p>
       </div>
     )
   }
@@ -22,7 +22,7 @@ export default function TodayTasksPage({ tasks }: Props) {
   return (
     <div style={{ padding: '12px 14px', flex: 1, overflowY: 'auto' }}>
       <p style={{ fontSize: 11, color: '#999', marginBottom: 10 }}>
-        今日已完成 {tasks.length} 个任务
+        {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} completed today
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {tasks.map((t, i) => {
@@ -39,7 +39,7 @@ export default function TodayTasksPage({ tasks }: Props) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 500, color: '#1a1a2e' }}>{t.title}</div>
                 <div style={{ fontSize: 11, color: '#999' }}>
-                  {t.taskType} &middot; {t.steps?.length || 0} 步骤
+                  {t.taskType} &middot; {t.steps?.length || 0} steps
                 </div>
               </div>
               <span style={{ fontSize: 11, color: '#bbb', fontFamily: 'monospace' }}>{time}</span>

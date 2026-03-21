@@ -1,12 +1,12 @@
-// Twitter 公共 Bearer Token (所有 Web 客户端共用)
+// Twitter public Bearer Token (shared by all web clients)
 export const BEARER_TOKEN =
   'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs=1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA'
 
-// xSocial 服务器
+// xSocial server
 export const XSOCIAL_API = 'https://xsocial.cc'
 export const XSOCIAL_WS = 'wss://ws.xsocial.cc'
 
-// GraphQL Query IDs (2026-02, 需定期更新)
+// GraphQL Query IDs (2026-02, needs periodic updates)
 export const GQL = {
   BlueVerifiedFollowers: 'Pt7oXCkejFVUp8q8BCvu5A',
   SearchTimeline: 'gkjsKepM6gl_HmFWoWKfgg',
@@ -20,7 +20,7 @@ export const GQL = {
   CreateRetweet: 'ojPdsZsimiJrUGLR1sjUtA',
 } as const
 
-// GraphQL Features (2026-02, 需定期更新)
+// GraphQL Features (2026-02, needs periodic updates)
 export const GQL_FEATURES = {
   rweb_tipjar_consumption_enabled: true,
   responsive_web_graphql_exclude_directive_enabled: true,
@@ -52,32 +52,32 @@ export const GQL_FEATURES = {
   highlights_tweets_tab_ui_enabled: true,
 }
 
-// 速率控制默认值
+// Rate limit defaults
 export const RATE_LIMITS = {
-  followDelayMin: 60_000,      // 关注最小间隔 60 秒
-  followDelayMax: 180_000,     // 关注最大间隔 180 秒
-  readDelayMin: 3_000,         // 读取最小间隔 3 秒
-  readDelayMax: 8_000,         // 读取最大间隔 8 秒
-  batchSize: 5,                // 每批操作数
-  batchRestMin: 300_000,       // 批次休息最小 5 分钟
-  batchRestMax: 600_000,       // 批次休息最大 10 分钟
-  dailyFollowLimit: 80,        // 每日关注上限
-  activeHoursStart: 8,         // 活跃时段开始 (24h)
-  activeHoursEnd: 23,          // 活跃时段结束
-  distractionChance: 0.05,     // 5% "走神" 概率
-  distractionMin: 30_000,      // 走神最小 30 秒
-  distractionMax: 120_000,     // 走神最大 120 秒
-  heartbeatInterval: 300_000,  // 心跳间隔 5 分钟
+  followDelayMin: 60_000,      // Min follow interval 60s
+  followDelayMax: 180_000,     // Max follow interval 180s
+  readDelayMin: 3_000,         // Min read interval 3s
+  readDelayMax: 8_000,         // Max read interval 8s
+  batchSize: 5,                // Operations per batch
+  batchRestMin: 300_000,       // Min batch rest 5 min
+  batchRestMax: 600_000,       // Max batch rest 10 min
+  dailyFollowLimit: 80,        // Daily follow limit
+  activeHoursStart: 8,         // Active hours start (24h)
+  activeHoursEnd: 23,          // Active hours end
+  distractionChance: 0.05,     // 5% distraction chance
+  distractionMin: 30_000,      // Min distraction 30s
+  distractionMax: 120_000,     // Max distraction 120s
+  heartbeatInterval: 300_000,  // Heartbeat interval 5 min
 }
 
-// 取关安全参数 (上限)
+// Unfollow safety limits
 export const UNFOLLOW_LIMITS = {
-  delayMin: 30_000,            // 取关间隔最小 30 秒
-  delayMax: 90_000,            // 取关间隔最大 90 秒
-  hourlyLimitMax: 30,          // 每小时上限
-  dailyLimitMax: 200,          // 每日上限
-  consecutiveErrorMax: 3,      // 连续错误 → 自动暂停
-  progressReportInterval: 5,   // 每 5 次取关上报一次进度
-  scrollPauseMin: 1_000,       // 页面滚动间歇最小 1 秒
-  scrollPauseMax: 3_000,       // 页面滚动间歇最大 3 秒
+  delayMin: 30_000,            // Min unfollow interval 30s
+  delayMax: 90_000,            // Max unfollow interval 90s
+  hourlyLimitMax: 30,          // Hourly limit
+  dailyLimitMax: 200,          // Daily limit
+  consecutiveErrorMax: 3,      // Consecutive errors -> auto pause
+  progressReportInterval: 5,   // Report progress every 5 unfollows
+  scrollPauseMin: 1_000,       // Min scroll pause 1s
+  scrollPauseMax: 3_000,       // Max scroll pause 3s
 }

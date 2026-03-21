@@ -14,7 +14,7 @@ function formatCount(n: number | undefined): string {
 export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
   return (
     <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
-      {/* Banner — Twitter 风格 3:1 宽高比 */}
+      {/* Banner — Twitter-style 3:1 aspect ratio */}
       <div style={{
         height: 110,
         background: xUser.profileBannerUrl
@@ -23,9 +23,9 @@ export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
         position: 'relative',
       }} />
 
-      {/* 主体内容 */}
+      {/* Main content */}
       <div style={{ padding: '0 16px 14px', position: 'relative' }}>
-        {/* Avatar — 压在 banner 上 */}
+        {/* Avatar — overlapping the banner */}
         <div style={{
           marginTop: -30, marginBottom: 8,
           display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
@@ -39,7 +39,7 @@ export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
               display: 'block', objectFit: 'cover',
             }}
           />
-          {/* 节点编号徽章 */}
+          {/* Node code badge */}
           {nodeCode && (
             <div style={{
               padding: '3px 10px', borderRadius: 20,
@@ -52,7 +52,7 @@ export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
           )}
         </div>
 
-        {/* 名称 + 认证 */}
+        {/* Name + verification */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)' }}>
             {xUser.displayName}
@@ -78,7 +78,7 @@ export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
           </div>
         )}
 
-        {/* 位置 + 加入时间 */}
+        {/* Location + join date */}
         {(xUser.location || xUser.joinedAt) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, fontSize: 13, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
             {xUser.location && (
@@ -97,7 +97,7 @@ export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
                 {(() => {
                   try {
                     const d = new Date(xUser.joinedAt!)
-                    return `${d.getFullYear()}年${d.getMonth() + 1}月加入`
+                    return `Joined ${d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
                   } catch { return '' }
                 })()}
               </span>
@@ -105,27 +105,27 @@ export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
           </div>
         )}
 
-        {/* 关注 / 关注者 — Twitter 原版布局 */}
+        {/* Following / Followers — Twitter original layout */}
         <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
           <span style={{ fontSize: 14 }}>
             <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{formatCount(xUser.followingCount)}</strong>
-            <span style={{ color: 'var(--text-secondary)', marginLeft: 4 }}>正在关注</span>
+            <span style={{ color: 'var(--text-secondary)', marginLeft: 4 }}>Following</span>
           </span>
           <span style={{ fontSize: 14 }}>
             <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{formatCount(xUser.followersCount)}</strong>
-            <span style={{ color: 'var(--text-secondary)', marginLeft: 4 }}>关注者</span>
+            <span style={{ color: 'var(--text-secondary)', marginLeft: 4 }}>Followers</span>
           </span>
         </div>
 
-        {/* 推文 / 点赞 / 媒体 — 统计条 */}
+        {/* Posts / Likes / Media — stats bar */}
         <div style={{
           display: 'flex', gap: 0, marginTop: 12, fontSize: 12,
           borderTop: '1px solid var(--border-light)', paddingTop: 10,
         }}>
           {[
-            { label: '推文', value: xUser.statusesCount },
-            { label: '点赞', value: xUser.likesCount },
-            { label: '媒体', value: xUser.mediaCount },
+            { label: 'Posts', value: xUser.statusesCount },
+            { label: 'Likes', value: xUser.likesCount },
+            { label: 'Media', value: xUser.mediaCount },
           ].filter(item => item.value !== undefined).map((item, i) => (
             <div key={i} style={{
               flex: 1, textAlign: 'center',
