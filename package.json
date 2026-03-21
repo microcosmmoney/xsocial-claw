@@ -1,7 +1,7 @@
 {
   "name": "xsocial-extension",
   "version": "1.0.0",
-  "description": "xSocial 蓝V互关助手 Chrome Extension",
+  "description": "xSocial Claw — AI-Powered Social Media Automation Chrome Extension",
   "private": true,
   "scripts": {
     "dev": "webpack --watch --mode development",

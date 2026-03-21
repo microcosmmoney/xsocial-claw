@@ -17,13 +17,13 @@
   <path d="M185 68 Q180 45 175 35" stroke="#c83030" stroke-width="3.5" fill="none" stroke-linecap="round"/>
   <path d="M215 68 Q220 45 225 35" stroke="#c83030" stroke-width="3.5" fill="none" stroke-linecap="round"/>
 
-  <!-- Body (竖向微椭圆) -->
+  <!-- Body (slightly vertical oval) -->
   <ellipse cx="200" cy="118" rx="56" ry="58" fill="url(#bodyGrad)"/>
 
-  <!-- Left Claw (小拳头，角度向上) -->
+  <!-- Left Claw (angled upward) -->
   <ellipse cx="137" cy="128" rx="16" ry="14" transform="rotate(25 137 128)" fill="url(#clawGrad)"/>
 
-  <!-- Right Claw (对称，角度向上) -->
+  <!-- Right Claw (mirrored, angled upward) -->
   <ellipse cx="263" cy="128" rx="16" ry="14" transform="rotate(-25 263 128)" fill="url(#clawGrad)"/>
 
   <!-- Left Eye -->

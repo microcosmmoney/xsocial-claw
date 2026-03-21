@@ -1,6 +1,6 @@
-/* xSocial 浮动面板 — 注入到 x.com 页面 */
+/* xSocial floating panel — injected into x.com pages */
 
-/* 浮动按钮 (右下角, 橙色主题) */
+/* Toggle button (bottom-right, orange theme) */
 #xsocial-toggle-btn {
   position: fixed;
   bottom: 80px;
@@ -29,7 +29,7 @@
   box-shadow: 0 4px 20px rgba(249, 115, 22, 0.7);
 }
 
-/* 浮动面板容器 */
+/* Panel container */
 #xsocial-panel {
   position: fixed;
   top: 56px;
@@ -47,7 +47,7 @@
   overflow: hidden;
 }
 
-/* 面板头部 */
+/* Panel header */
 #xsocial-panel-header {
   display: flex;
   align-items: center;
@@ -84,7 +84,7 @@
   color: #ffffff;
 }
 
-/* iframe 填满面板 */
+/* iframe fills panel */
 #xsocial-panel-frame {
   flex: 1;
   width: 100%;
@@ -92,7 +92,7 @@
   background: #f5f5f7;
 }
 
-/* ===== 全页面欢迎遮罩弹窗 ===== */
+/* ===== Full-page welcome overlay ===== */
 
 #xsocial-welcome-overlay {
   position: fixed;

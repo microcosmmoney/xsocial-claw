@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "xSocial Agent",
   "version": "2.2.0",
-  "description": "xSocial 浏览器 Agent — AI 驱动的社交媒体自动化",
+  "description": "xSocial Claw — AI-Powered Social Media Automation",
   "permissions": [
     "storage",
     "cookies",
