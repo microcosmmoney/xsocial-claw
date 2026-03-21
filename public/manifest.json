@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "xSocial Agent",
+  "version": "2.2.0",
+  "description": "xSocial 浏览器 Agent — AI 驱动的社交媒体自动化",
+  "permissions": [
+    "storage",
+    "cookies",
+    "activeTab",
+    "scripting",
+    "tabs",
+    "alarms",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://*.x.com/*",
+    "https://twitter.com/*",
+    "https://*.twitter.com/*",
+    "https://xsocial.cc/*",
+    "wss://ws.xsocial.cc/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "side_panel": {
+    "default_path": "popup.html"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

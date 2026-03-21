@@ -1,0 +1,227 @@
+/* xSocial 浮动面板 — 注入到 x.com 页面 */
+
+/* 浮动按钮 (右下角, 橙色主题) */
+#xsocial-toggle-btn {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 99999;
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.45);
+  transition: transform 0.2s, box-shadow 0.2s;
+  user-select: none;
+}
+
+#xsocial-toggle-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 24px rgba(249, 115, 22, 0.6);
+}
+
+#xsocial-toggle-btn.xsocial-btn-active {
+  box-shadow: 0 4px 20px rgba(249, 115, 22, 0.7);
+}
+
+/* 浮动面板容器 */
+#xsocial-panel {
+  position: fixed;
+  top: 56px;
+  right: 16px;
+  width: 380px;
+  height: calc(100vh - 76px);
+  max-height: 720px;
+  background: #f5f5f7;
+  border: 1px solid #e0e0e0;
+  border-radius: 16px;
+  z-index: 99998;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 面板头部 */
+#xsocial-panel-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  background: #6B7280;
+  border-bottom: none;
+  cursor: default;
+  flex-shrink: 0;
+}
+
+.xsocial-panel-logo-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.xsocial-panel-logo-link:hover {
+  opacity: 0.8;
+}
+
+#xsocial-panel-close {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.7);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+#xsocial-panel-close:hover {
+  color: #ffffff;
+}
+
+/* iframe 填满面板 */
+#xsocial-panel-frame {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #f5f5f7;
+}
+
+/* ===== 全页面欢迎遮罩弹窗 ===== */
+
+#xsocial-welcome-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: 200000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: xsocial-fade-in 0.25s ease-out;
+}
+
+@keyframes xsocial-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+#xsocial-welcome-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 36px 28px 28px;
+  max-width: 380px;
+  width: 88%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  animation: xsocial-card-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes xsocial-card-in {
+  from { opacity: 0; transform: scale(0.85) translateY(30px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.xsocial-welcome-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.4);
+}
+
+.xsocial-welcome-icon svg {
+  width: 36px;
+  height: 36px;
+}
+
+.xsocial-welcome-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin-bottom: 24px;
+  line-height: 1.3;
+}
+
+.xsocial-welcome-tips {
+  text-align: left;
+  margin-bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.xsocial-welcome-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.xsocial-welcome-tip-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.xsocial-welcome-tip-icon.blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.xsocial-welcome-tip-icon.green {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.xsocial-welcome-tip-icon.amber {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.xsocial-welcome-tip em {
+  font-style: normal;
+  color: #f97316;
+  font-weight: 600;
+}
+
+.xsocial-welcome-btn {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.35);
+}
+
+.xsocial-welcome-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.5);
+}
+
+.xsocial-welcome-btn:active {
+  transform: translateY(0);
+}

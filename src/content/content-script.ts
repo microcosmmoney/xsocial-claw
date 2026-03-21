@@ -1,0 +1,821 @@
+import { logger } from '@utils/logger'
+
+/**
+ * Content Script — v4.2 浏览器 Agent 感知+执行层
+ *
+ * 注入到 x.com / twitter.com 页面 (ISOLATED world)
+ *
+ * 核心能力:
+ *   1. snapshot() — 针对 Twitter data-testid 结构的 DOM 遍历
+ *   2. executeAction() — click/type/press 原子操作 (isTrusted:true)
+ *   3. 消息处理 — 接收 background service-worker 指令
+ *
+ * 设计原则:
+ *   - 不用 CDP (避免黄色 debugger 提示条)
+ *   - 针对 Twitter 实际 DOM 结构优化 (data-testid)
+ *   - 滚动用键盘 j/k (Twitter 原生快捷键)
+ */
+
+// ===== Ref 管理 =====
+
+const refMap = new Map<string, Element>()
+let refCounter = 0
+
+function resetRefs(): void {
+  refMap.clear()
+  refCounter = 0
+}
+
+function assignRef(el: Element): string {
+  const ref = `e${++refCounter}`
+  refMap.set(ref, el)
+  return ref
+}
+
+// ===== Snapshot — Twitter 专用 DOM 提取 =====
+
+function getSnapshot(): { snapshot: string; elementCount: number } {
+  resetRefs()
+  const lines: string[] = []
+
+  // 1. 导航栏 (简化)
+  const nav = document.querySelector('nav[role="navigation"]')
+  if (nav) {
+    const navLinks = nav.querySelectorAll('a[href]')
+    for (const link of navLinks) {
+      const text = (link as HTMLElement).innerText?.trim()
+      if (text && text.length < 50) {
+        const ref = assignRef(link)
+        lines.push(`link "${text}" [ref=${ref}]`)
+      }
+    }
+  }
+
+  // 2. 发帖框
+  const composeBox = document.querySelector('[data-testid="tweetTextarea_0"]')
+  if (composeBox) {
+    const ref = assignRef(composeBox)
+    lines.push(`textbox "发帖框" [ref=${ref}]`)
+  }
+
+  // 3. Tab 切换 (为你推荐 / 正在关注)
+  const tabList = document.querySelector('[role="tablist"]')
+  if (tabList) {
+    const tabs = tabList.querySelectorAll('[role="tab"]')
+    for (const tab of tabs) {
+      const text = (tab as HTMLElement).innerText?.trim()
+      if (text) {
+        const ref = assignRef(tab)
+        const selected = tab.getAttribute('aria-selected') === 'true' ? ' [selected]' : ''
+        lines.push(`tab "${text}"${selected} [ref=${ref}]`)
+      }
+    }
+  }
+
+  // 3.5 Profile 页面 — 关注/取关按钮
+  const followBtn = document.querySelector('[data-testid$="-follow"], [data-testid$="-unfollow"]') as HTMLElement
+  if (followBtn) {
+    const ref = assignRef(followBtn)
+    const isFollowing = followBtn.getAttribute('data-testid')?.includes('unfollow')
+    const label = isFollowing ? '正在关注' : '关注'
+    lines.push(`button "${label}" [ref=${ref}]`)
+  }
+
+  // 4. 推文列表 — 核心内容
+  const tweets = document.querySelectorAll('[data-testid="tweet"]')
+  for (const tweet of tweets) {
+    const tweetRef = assignRef(tweet)
+    const tweetLines: string[] = []
+
+    // 用户名 + handle + 时间 + 可点击的 profile 链接
+    const userNameEl = tweet.querySelector('[data-testid="User-Name"]')
+    if (userNameEl) {
+      const userName = (userNameEl as HTMLElement).innerText?.replace(/\n/g, ' ').trim()
+      // 检测蓝V认证 (verified badge)
+      const isVerified = !!(userNameEl.querySelector('[data-testid="icon-verified"]') ||
+                           userNameEl.querySelector('svg[aria-label*="认证"]') ||
+                           userNameEl.querySelector('svg[aria-label*="Verified"]') ||
+                           userNameEl.querySelector('svg[aria-label*="verified"]'))
+      const badge = isVerified ? ' [蓝V]' : ''
+      if (userName) tweetLines.push(`  user "${userName}"${badge}`)
+      // 提取用户 profile 链接
+      const profileLink = userNameEl.querySelector('a[href]') as HTMLAnchorElement
+      if (profileLink && !profileLink.href.includes('/status/')) {
+        const profileRef = assignRef(profileLink)
+        const handle = profileLink.getAttribute('href')?.replace('/', '@') || ''
+        tweetLines.push(`  link "用户主页 ${handle}" [ref=${profileRef}]`)
+      }
+    }
+
+    // 推文正文
+    const tweetText = tweet.querySelector('[data-testid="tweetText"]')
+    if (tweetText) {
+      const text = (tweetText as HTMLElement).innerText?.trim()
+      if (text) {
+        const textRef = assignRef(tweetText)
+        tweetLines.push(`  text "${text.slice(0, 280)}" [ref=${textRef}]`)
+      }
+    }
+
+    // 图片
+    const images = tweet.querySelectorAll('[data-testid="tweetPhoto"] img')
+    for (const img of images) {
+      const alt = img.getAttribute('alt') || '图片'
+      tweetLines.push(`  img "${alt.slice(0, 100)}"`)
+    }
+
+    // 互动按钮
+    const replyBtn = tweet.querySelector('[data-testid="reply"]')
+    if (replyBtn) {
+      const replyRef = assignRef(replyBtn)
+      const count = replyBtn.getAttribute('aria-label') || ''
+      tweetLines.push(`  button "回复 ${count}" [ref=${replyRef}]`)
+    }
+
+    const retweetBtn = tweet.querySelector('[data-testid="retweet"]')
+    if (retweetBtn) {
+      const rtRef = assignRef(retweetBtn)
+      const count = retweetBtn.getAttribute('aria-label') || ''
+      tweetLines.push(`  button "转发 ${count}" [ref=${rtRef}]`)
+    }
+
+    const likeBtn = tweet.querySelector('[data-testid="like"]') || tweet.querySelector('[data-testid="unlike"]')
+    if (likeBtn) {
+      const likeRef = assignRef(likeBtn)
+      const count = likeBtn.getAttribute('aria-label') || ''
+      const liked = likeBtn.getAttribute('data-testid') === 'unlike' ? ' [已赞]' : ''
+      tweetLines.push(`  button "点赞 ${count}${liked}" [ref=${likeRef}]`)
+    }
+
+    const bookmarkBtn = tweet.querySelector('[data-testid="bookmark"]')
+    if (bookmarkBtn) {
+      const bmRef = assignRef(bookmarkBtn)
+      tweetLines.push(`  button "收藏" [ref=${bmRef}]`)
+    }
+
+    // 推文链接 (用于点击进入详情)
+    const tweetLink = tweet.querySelector('a[href*="/status/"]')
+    if (tweetLink) {
+      const linkRef = assignRef(tweetLink)
+      const href = tweetLink.getAttribute('href') || ''
+      tweetLines.push(`  link "${href}" [ref=${linkRef}]`)
+    }
+
+    if (tweetLines.length > 0) {
+      lines.push(`article "推文" [ref=${tweetRef}]`)
+      lines.push(...tweetLines)
+    }
+  }
+
+  // 4.5 Hover Card 弹窗 — #layers 里的悬停用户卡片
+  const layersEl = document.getElementById('layers')
+  if (layersEl) {
+    const followBtnInLayers = layersEl.querySelector('[data-testid$="-follow"], [data-testid$="-unfollow"]') as HTMLElement
+    if (followBtnInLayers) {
+      const ref = assignRef(followBtnInLayers)
+      const isFollowing = followBtnInLayers.getAttribute('data-testid')?.includes('unfollow')
+      // 尝试获取用户名
+      const nameEl = layersEl.querySelector('a[role="link"] span') || layersEl.querySelector('[dir="ltr"] span')
+      const name = (nameEl as HTMLElement)?.textContent?.trim() || ''
+      lines.push(`hovercard "${name}"`)
+      lines.push(`  button "${isFollowing ? '正在关注' : '关注'}" [ref=${ref}]`)
+    }
+  }
+
+  // 5. 右侧栏 — 趋势
+  const trending = document.querySelector('[aria-label="时间线：趋势"]') ||
+                   document.querySelector('[data-testid="trend"]')?.closest('section')
+  if (trending) {
+    const trends = trending.querySelectorAll('[data-testid="trend"]')
+    if (trends.length > 0) {
+      lines.push(`region "趋势"`)
+      for (const trend of Array.from(trends).slice(0, 5)) {
+        const text = (trend as HTMLElement).innerText?.replace(/\n/g, ' ').trim().slice(0, 80)
+        if (text) {
+          const ref = assignRef(trend)
+          lines.push(`  link "${text}" [ref=${ref}]`)
+        }
+      }
+    }
+  }
+
+  // 6. 右侧栏 — 推荐关注
+  const whoToFollow = document.querySelector('[data-testid="UserCell"]')?.closest('aside')
+  if (whoToFollow) {
+    const users = whoToFollow.querySelectorAll('[data-testid="UserCell"]')
+    if (users.length > 0) {
+      lines.push(`region "推荐关注"`)
+      for (const user of Array.from(users).slice(0, 3)) {
+        const text = (user as HTMLElement).innerText?.replace(/\n/g, ' ').trim().slice(0, 60)
+        if (text) {
+          const ref = assignRef(user)
+          lines.push(`  generic "${text}" [ref=${ref}]`)
+        }
+      }
+    }
+  }
+
+  // 7. 对话框/弹窗 (回复框等)
+  const dialogs = document.querySelectorAll('[role="dialog"]')
+  for (const dialog of dialogs) {
+    const dialogRef = assignRef(dialog)
+    lines.push(`dialog [ref=${dialogRef}]`)
+    // 对话框内的输入框
+    const inputs = dialog.querySelectorAll('[data-testid="tweetTextarea_0"], [role="textbox"]')
+    for (const input of inputs) {
+      const ref = assignRef(input)
+      const placeholder = input.getAttribute('aria-label') || input.getAttribute('placeholder') || '输入框'
+      lines.push(`  textbox "${placeholder}" [ref=${ref}]`)
+    }
+    // 对话框内的按钮
+    const buttons = dialog.querySelectorAll('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]')
+    for (const btn of buttons) {
+      const ref = assignRef(btn)
+      lines.push(`  button "发送" [ref=${ref}]`)
+    }
+  }
+
+  // 8. 页面信息
+  const pageInfo = `[page] url=${location.href} title=${document.title}`
+  lines.push(pageInfo)
+
+  return { snapshot: lines.join('\n'), elementCount: refCounter }
+}
+
+// ===== Action 执行 — 原子操作 =====
+
+interface ActionConfig {
+  type: 'click' | 'type' | 'press' | 'scroll' | 'hover'
+  ref?: string
+  text?: string
+  key?: string
+  pixels?: number
+  humanDelay?: boolean
+}
+
+async function executeAction(config: ActionConfig): Promise<{ success: boolean; error?: string; hoverCardFound?: boolean; autoFollowed?: boolean; alreadyFollowing?: boolean }> {
+  const { type, ref, text, key, pixels, humanDelay } = config
+
+  // scroll — 最简单直接的滚动
+  if (type === 'scroll') {
+    const amount = pixels || 600
+    console.log(`[xSocial] scroll executing: ${amount}px`)
+    // 方法1: scrollingElement (最通用)
+    if (document.scrollingElement) {
+      document.scrollingElement.scrollTop += amount
+      console.log(`[xSocial] scrollingElement.scrollTop = ${document.scrollingElement.scrollTop}`)
+    }
+    // 方法2: documentElement
+    document.documentElement.scrollTop += amount
+    // 方法3: body
+    document.body.scrollTop += amount
+    // 方法4: window
+    window.scrollBy(0, amount)
+    await sleep(500)
+    return { success: true }
+  }
+
+  // press — 通用键盘按键
+  if (type === 'press') {
+    const keyStr = key || 'Enter'
+
+    // PageDown/PageUp/ArrowDown — 用真实滚动代替 (dispatchEvent 是 isTrusted:false)
+    if (keyStr === 'PageDown' || keyStr === 'ArrowDown' || keyStr === 'j') {
+      console.log('[xSocial] press PageDown → scrollIntoView next tweet')
+      const tweets = document.querySelectorAll('[data-testid="tweet"]')
+      const viewMid = window.innerHeight / 2
+      let target: Element | null = null
+      for (const t of tweets) {
+        if (t.getBoundingClientRect().top > viewMid) { target = t; break }
+      }
+      if (!target && tweets.length > 0) target = tweets[tweets.length - 1]
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      } else {
+        document.scrollingElement && (document.scrollingElement.scrollTop += 500)
+      }
+      await sleep(400)
+      return { success: true }
+    }
+
+    if (keyStr === 'PageUp' || keyStr === 'ArrowUp' || keyStr === 'k') {
+      document.scrollingElement && (document.scrollingElement.scrollTop -= 500)
+      await sleep(400)
+      return { success: true }
+    }
+
+    // 其他按键正常 dispatch
+    const parts = keyStr.split('+')
+    const keyName = parts.pop()!
+    const mods = parts.map(m => m.toLowerCase())
+    const keyTarget = ref ? refMap.get(ref) || document.activeElement || document.body : document.activeElement || document.body
+
+    for (const evType of ['keydown', 'keypress', 'keyup'] as const) {
+      keyTarget.dispatchEvent(new KeyboardEvent(evType, {
+        key: keyName, code: keyName,
+        ctrlKey: mods.includes('ctrl'),
+        shiftKey: mods.includes('shift'),
+        metaKey: mods.includes('meta'),
+        altKey: mods.includes('alt'),
+        bubbles: true, cancelable: true,
+      }))
+    }
+    return { success: true }
+  }
+
+  // 特殊 ref: __tweetButton__ — 自动找发送按钮
+  if (ref === '__tweetButton__' && type === 'click') {
+    const sendBtn = document.querySelector('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]') as HTMLElement
+    if (!sendBtn) return { success: false, error: '找不到发送按钮' }
+    logger.info(`[Content] 自动点击发送按钮: ${sendBtn.textContent?.trim()}`)
+    sendBtn.click()
+    await sleep(500)
+    return { success: true }
+  }
+
+  // click / type — 需要 ref
+  if (!ref) return { success: false, error: 'ref is required' }
+  const el = refMap.get(ref)
+  if (!el) return { success: false, error: `ref ${ref} not found` }
+
+  if (type === 'hover') {
+    const htmlEl = el as HTMLElement
+    // 模拟鼠标悬停 — 触发 Twitter 的 hover card
+    const rect = htmlEl.getBoundingClientRect()
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    const opts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, view: window }
+    htmlEl.dispatchEvent(new MouseEvent('mouseover', opts))
+    htmlEl.dispatchEvent(new MouseEvent('mouseenter', { ...opts, bubbles: false }))
+    // pointerenter 也发一下 (React 17+ 可能监听 pointer 事件)
+    htmlEl.dispatchEvent(new PointerEvent('pointerover', { ...opts, bubbles: true }))
+    htmlEl.dispatchEvent(new PointerEvent('pointerenter', { ...opts, bubbles: false }))
+    logger.info(`[Content] hover 完成: ${htmlEl.tagName} at (${Math.round(cx)}, ${Math.round(cy)})`)
+    // 等弹窗渲染 (Twitter hover card 有延迟)
+    await sleep(1500)
+    // 检查 #layers 里有没有弹出关注按钮
+    const layersCheck = document.getElementById('layers')
+    const hcBtn = layersCheck?.querySelector('[data-testid$="-follow"]') as HTMLElement
+    const hcUnfollow = layersCheck?.querySelector('[data-testid$="-unfollow"]')
+    logger.info(`[Content] hover card 检测: layers=${!!layersCheck}, followBtn=${!!hcBtn}, unfollowBtn=${!!hcUnfollow}`)
+    if (hcBtn && !hcUnfollow) {
+      // 弹窗里有关注按钮且未关注 → 直接点击关注
+      hcBtn.click()
+      logger.info(`[Content] hover card 自动点击关注!`)
+      await sleep(800)
+      // 点空白区域关闭弹窗
+      document.body.click()
+      await sleep(300)
+      return { success: true, hoverCardFound: true, autoFollowed: true }
+    }
+    return { success: true, hoverCardFound: !!hcBtn || !!hcUnfollow, alreadyFollowing: !!hcUnfollow }
+  }
+
+  if (type === 'click') {
+    const htmlEl = el as HTMLElement
+
+    // ---- 安全检查: 弹窗已打开时禁止再点回复/转发按钮 ----
+    const isReplyBtn = htmlEl.closest('[data-testid="reply"]') ||
+                       htmlEl.textContent?.includes('回复') ||
+                       htmlEl.getAttribute('aria-label')?.includes('回复') ||
+                       htmlEl.getAttribute('aria-label')?.includes('Reply')
+    if (isReplyBtn) {
+      const dialogOpen = document.querySelector('[role="dialog"]') ||
+                         window.location.pathname.includes('/compose/')
+      if (dialogOpen) {
+        logger.warn('[Content] ⛔ 回复弹窗已打开, 禁止再次点击回复按钮')
+        return { success: false, error: '回复弹窗已打开, 禁止重复点击回复按钮' }
+      }
+    }
+
+    htmlEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    await sleep(humanDelay ? randomInt(300, 600) : 100)
+    htmlEl.click()
+
+    // ---- 点击后验证 ----
+    await sleep(300)
+    logger.info('[Content] click 完成:', htmlEl.tagName, htmlEl.textContent?.slice(0, 30))
+    return { success: true }
+  }
+
+  if (type === 'type') {
+    logger.info('[Content] type: 请求 service-worker 在 MAIN world 执行 paste')
+    // content-script (isolated world) 无法让 Draft.js 识别输入
+    // 必须在 MAIN world 执行, 通过 service-worker 的 chrome.scripting.executeScript 实现
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({
+        type: 'EXECUTE_IN_MAIN_WORLD',
+        payload: { text }
+      }, (response) => {
+        logger.info('[Content] MAIN world 执行结果:', response)
+        resolve(response || { success: true })
+      })
+    })
+  }
+
+  return { success: false, error: `Unknown action: ${type}` }
+}
+
+// ===== 工具 =====
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms))
+}
+
+function randomInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+// ===== 方案B: 页面滚动取关引擎 =====
+
+let unfollowScanRunning = false
+let unfollowExecRunning = false
+let unfollowStopRequested = false
+
+interface PageNonFollower {
+  userId?: string
+  screenName: string
+  displayName: string
+  cellElement: Element
+}
+
+/**
+ * 方案B 扫描: 在"正在关注"页面自动滚动，找出没有"关注了你"标签的人
+ */
+async function scanFollowingPage(taskId: string, xScreenName: string, token: string): Promise<void> {
+  unfollowScanRunning = true
+  unfollowStopRequested = false
+
+  const nonFollowers: Array<{ screenName: string; displayName: string }> = []
+  const seenHandles = new Set<string>()
+  let noNewCount = 0
+
+  logger.info('[Unfollow-Page] 开始页面滚动扫描...')
+
+  while (!unfollowStopRequested) {
+    // 扫描当前可见的用户卡片
+    const cells = document.querySelectorAll('[data-testid="UserCell"]')
+    let foundNew = false
+
+    for (const cell of cells) {
+      const linkEl = cell.querySelector('a[role="link"][href^="/"]') as HTMLAnchorElement
+      if (!linkEl) continue
+
+      const href = linkEl.getAttribute('href') || ''
+      const handle = href.replace(/^\//, '').split('/')[0]
+      if (!handle || seenHandles.has(handle)) continue
+
+      seenHandles.add(handle)
+      foundNew = true
+
+      const nameEl = cell.querySelector('[dir="ltr"] span') as HTMLElement
+      const displayName = nameEl?.textContent?.trim() || handle
+
+      // 检查是否有"关注了你" / "Follows you" 标签
+      const cellText = (cell as HTMLElement).innerText || ''
+      const followsYou = cellText.includes('关注了你') || cellText.includes('Follows you')
+
+      if (!followsYou) {
+        nonFollowers.push({ screenName: handle, displayName })
+        logger.info(`[Unfollow-Page] 发现未回关: @${handle}`)
+      }
+    }
+
+    if (!foundNew) {
+      noNewCount++
+      if (noNewCount > 5) {
+        logger.info('[Unfollow-Page] 连续5次滚动无新用户, 扫描结束')
+        break
+      }
+    } else {
+      noNewCount = 0
+    }
+
+    // 滚动加载更多
+    window.scrollBy(0, 800)
+    await sleep(randomInt(1000, 3000))
+  }
+
+  logger.info(`[Unfollow-Page] 扫描完成: 共检查 ${seenHandles.size} 人, 发现 ${nonFollowers.length} 个未回关`)
+
+  // 上报结果到服务端
+  try {
+    await fetch(`https://xsocial.cc/api/market/manager/x-maintenance/scan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        taskId,
+        nonFollowers: nonFollowers.map(nf => ({
+          userId: '',
+          screenName: nf.screenName,
+          displayName: nf.displayName,
+        })),
+        totalFollowing: seenHandles.size,
+        totalFollowers: 0,
+      }),
+    })
+  } catch (err) {
+    logger.warn('[Unfollow-Page] 上报扫描结果失败:', err)
+  }
+
+  // 通知 service-worker
+  chrome.runtime.sendMessage({
+    type: 'UNFOLLOW_SCAN_DONE',
+    payload: { taskId, nonFollowerCount: nonFollowers.length, totalScanned: seenHandles.size },
+  }).catch(() => {})
+
+  unfollowScanRunning = false
+}
+
+/**
+ * 方案B 执行: 在"正在关注"页面滚动并取关没有"关注了你"的人
+ * 真人模式: 滚动 → 检测 → 点"正在关注"按钮 → 确认取关 → 等待 → 继续
+ */
+async function executePageUnfollow(
+  taskId: string,
+  config: { delayMin: number; delayMax: number; hourlyLimit: number; dailyLimit: number },
+  startIndex: number,
+  token: string
+): Promise<void> {
+  unfollowExecRunning = true
+  unfollowStopRequested = false
+
+  const seenHandles = new Set<string>()
+  let unfollowedCount = 0
+  let failedCount = 0
+  let processedIndex = startIndex
+  let hourlyCount = 0
+  let dailyCount = 0
+  let noNewCount = 0
+  const actions: Array<{ userId: string; screenName: string; success: boolean; timestamp: number; error?: string }> = []
+
+  // 先滚动到之前处理的位置 (粗略跳过)
+  if (startIndex > 0) {
+    logger.info(`[Unfollow-Page] 跳过前 ${startIndex} 个已处理的用户...`)
+    for (let skip = 0; skip < startIndex; skip++) {
+      window.scrollBy(0, 100)
+      if (skip % 20 === 0) await sleep(500)
+    }
+    await sleep(1000)
+  }
+
+  logger.info(`[Unfollow-Page] 开始页面取关, 从第 ${startIndex} 个开始`)
+
+  while (!unfollowStopRequested) {
+    // 检查频率限制
+    if (hourlyCount >= config.hourlyLimit) {
+      logger.info(`[Unfollow-Page] 达到每小时上限 ${config.hourlyLimit}, 暂停`)
+      break
+    }
+    if (dailyCount >= config.dailyLimit) {
+      logger.info(`[Unfollow-Page] 达到每日上限 ${config.dailyLimit}, 暂停`)
+      break
+    }
+
+    // 扫描当前可见的用户卡片
+    const cells = document.querySelectorAll('[data-testid="UserCell"]')
+    let foundAction = false
+
+    for (const cell of cells) {
+      if (unfollowStopRequested) break
+      if (hourlyCount >= config.hourlyLimit || dailyCount >= config.dailyLimit) break
+
+      const linkEl = cell.querySelector('a[role="link"][href^="/"]') as HTMLAnchorElement
+      if (!linkEl) continue
+
+      const href = linkEl.getAttribute('href') || ''
+      const handle = href.replace(/^\//, '').split('/')[0]
+      if (!handle || seenHandles.has(handle)) continue
+
+      seenHandles.add(handle)
+      processedIndex++
+
+      const cellText = (cell as HTMLElement).innerText || ''
+      const followsYou = cellText.includes('关注了你') || cellText.includes('Follows you')
+
+      if (followsYou) continue // 互关, 跳过
+
+      // 找到未回关的人 → 取关
+      foundAction = true
+
+      // 找到"正在关注"按钮
+      const followingBtn = cell.querySelector('[data-testid$="-unfollow"]') as HTMLElement
+      if (!followingBtn) {
+        logger.warn(`[Unfollow-Page] @${handle} 没找到取关按钮, 跳过`)
+        failedCount++
+        continue
+      }
+
+      // 滚动到可见位置
+      cell.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      await sleep(randomInt(500, 1000))
+
+      // 点击"正在关注"按钮
+      followingBtn.click()
+      logger.info(`[Unfollow-Page] 点击取关按钮: @${handle}`)
+      await sleep(randomInt(500, 1000))
+
+      // 等待确认弹窗并点击确认
+      const confirmBtn = document.querySelector('[data-testid="confirmationSheetConfirm"]') as HTMLElement
+      if (confirmBtn) {
+        confirmBtn.click()
+        logger.info(`[Unfollow-Page] ✓ 确认取关 @${handle}`)
+        unfollowedCount++
+        hourlyCount++
+        dailyCount++
+
+        actions.push({
+          userId: '',
+          screenName: handle,
+          success: true,
+          timestamp: Date.now(),
+        })
+      } else {
+        logger.warn(`[Unfollow-Page] 未出现确认弹窗, 可能已自动取关或失败`)
+        // 有些情况下点按钮直接取关，没有确认弹窗
+        unfollowedCount++
+        hourlyCount++
+        dailyCount++
+
+        actions.push({
+          userId: '',
+          screenName: handle,
+          success: true,
+          timestamp: Date.now(),
+        })
+      }
+
+      await sleep(300)
+
+      // 定期上报进度
+      if (actions.length >= 5) {
+        reportPageProgress(token, taskId, unfollowedCount, failedCount, processedIndex, actions.splice(0))
+      }
+
+      // 人类延迟
+      const delay = gaussianDelay(config.delayMin, config.delayMax)
+      logger.info(`[Unfollow-Page] 等待 ${(delay / 1000).toFixed(1)}s...`)
+      await sleep(delay)
+    }
+
+    if (!foundAction) {
+      noNewCount++
+      if (noNewCount > 8) {
+        logger.info('[Unfollow-Page] 连续8次滚动无新目标, 任务完成')
+        break
+      }
+    } else {
+      noNewCount = 0
+    }
+
+    // 滚动加载更多
+    window.scrollBy(0, 600)
+    await sleep(randomInt(1000, 2000))
+  }
+
+  // 上报剩余进度
+  if (actions.length > 0) {
+    reportPageProgress(token, taskId, unfollowedCount, failedCount, processedIndex, actions.splice(0))
+  }
+
+  // 报告完成
+  const completed = noNewCount > 8
+  try {
+    await fetch(`https://xsocial.cc/api/market/manager/x-maintenance/progress`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        taskId,
+        unfollowedCount,
+        failedCount,
+        lastProcessedIndex: processedIndex,
+        completed,
+      }),
+    })
+  } catch {}
+
+  logger.info(`[Unfollow-Page] 本轮结束: 取关 ${unfollowedCount}, 失败 ${failedCount}`)
+  unfollowExecRunning = false
+}
+
+function gaussianDelay(min: number, max: number): number {
+  const mean = (min + max) / 2
+  const stdDev = (max - min) / 4
+  const u1 = Math.random(), u2 = Math.random()
+  let val = mean + Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2) * stdDev
+  return Math.round(Math.max(min, Math.min(max, val)))
+}
+
+function reportPageProgress(
+  token: string, taskId: string,
+  unfollowedCount: number, failedCount: number,
+  lastProcessedIndex: number,
+  actionLog: any[]
+) {
+  fetch(`https://xsocial.cc/api/market/manager/x-maintenance/progress`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ taskId, unfollowedCount, failedCount, lastProcessedIndex, actionLog }),
+  }).catch(() => {})
+}
+
+// ===== 消息处理 =====
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  handleMessage(message)
+    .then(sendResponse)
+    .catch(err => {
+      logger.error('[Content] Error:', err)
+      sendResponse({ success: false, error: err.message || String(err) })
+    })
+  return true
+})
+
+async function handleMessage(message: { type: string; payload?: any }) {
+  switch (message.type) {
+    case 'SNAPSHOT': {
+      const result = getSnapshot()
+      return {
+        success: true,
+        data: {
+          snapshot: result.snapshot,
+          elementCount: result.elementCount,
+          url: location.href,
+          title: document.title,
+        },
+      }
+    }
+
+    case 'ACTION': {
+      const actionResult = await executeAction(message.payload)
+      if (!actionResult.success) {
+        return { success: false, error: actionResult.error, data: { url: location.href, title: document.title } }
+      }
+      await sleep(message.payload?.waitAfter || 600)
+      const snap = getSnapshot()
+      return {
+        success: true,
+        autoFollowed: actionResult.autoFollowed || false,
+        data: {
+          snapshot: snap.snapshot,
+          elementCount: snap.elementCount,
+          url: location.href,
+          title: document.title,
+          autoFollowed: actionResult.autoFollowed || false,
+        },
+      }
+    }
+
+    case 'GET_PAGE_INFO':
+      return { success: true, data: { url: location.href, title: document.title } }
+
+    // ===== 方案B: 页面滚动取关 =====
+
+    case 'UNFOLLOW_SCAN_PAGE': {
+      const { taskId, xScreenName, token } = message.payload || {}
+      if (unfollowScanRunning) return { success: false, error: '扫描已在运行' }
+      // 异步执行，不阻塞消息回调
+      scanFollowingPage(taskId, xScreenName, token)
+      return { success: true, message: '扫描已启动' }
+    }
+
+    case 'UNFOLLOW_EXECUTE_PAGE': {
+      const { taskId, config, startIndex, token } = message.payload || {}
+      if (unfollowExecRunning) return { success: false, error: '取关已在运行' }
+      executePageUnfollow(taskId, config, startIndex || 0, token)
+      return { success: true, message: '取关已启动' }
+    }
+
+    case 'UNFOLLOW_PAUSE': {
+      unfollowStopRequested = true
+      return { success: true }
+    }
+
+    default:
+      return { success: false, error: `Unknown: ${message.type}` }
+  }
+}
+
+// ===== URL 变化监听 (Twitter SPA) =====
+
+let currentUrl = location.href
+const urlObserver = new MutationObserver(() => {
+  if (location.href !== currentUrl) {
+    currentUrl = location.href
+    resetRefs()
+    chrome.runtime.sendMessage({ type: 'URL_CHANGED', payload: { url: location.href } }).catch(() => {})
+  }
+})
+urlObserver.observe(document.body, { childList: true, subtree: true })
+
+// ===== 初始化 =====
+logger.info(`[Content] v4.2 Agent 已注入: ${location.hostname}${location.pathname}`)
