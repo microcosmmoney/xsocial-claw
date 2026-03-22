@@ -15,7 +15,7 @@ export function useTheme() {
   const [mode, setMode] = useState<ThemeMode>('system')
   const [resolved, setResolved] = useState<'light' | 'dark'>('light')
 
-  // Initialize: read from storage
+  // 初始化：从 storage 读取
   useEffect(() => {
     chrome.storage.local.get('theme_mode').then((store) => {
       const saved = (store.theme_mode as ThemeMode) || 'system'
@@ -24,7 +24,7 @@ export function useTheme() {
     })
   }, [])
 
-  // Listen for system theme changes
+  // 监听系统主题变化
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const handler = () => {
@@ -36,7 +36,7 @@ export function useTheme() {
     return () => mq.removeEventListener('change', handler)
   }, [mode])
 
-  // Apply to DOM
+  // 应用到 DOM
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', resolved)
   }, [resolved])

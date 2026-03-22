@@ -9,7 +9,7 @@ interface HeaderProps {
   onThemeToggle: () => void
 }
 
-// Theme icons: sun / moon / system
+// 主题图标: 太阳 / 月亮 / 自动
 function ThemeIcon({ mode }: { mode: ThemeMode }) {
   if (mode === 'light') {
     return (
@@ -47,11 +47,11 @@ export default function Header({ nodeCode, wsConnected, isBound, themeMode, onTh
       background: 'var(--bg-header)',
       borderBottom: '1px solid var(--border)',
     }}>
-      {/* Logo + breathing light */}
+      {/* Logo + 呼吸灯 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 15, fontWeight: 700, color: '#ff5722' }}>xSocial</span>
         <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 500 }}>Agent</span>
-        {/* Breathing light indicator dot */}
+        {/* 呼吸灯 — 仅一个小圆点 */}
         <div
           className={wsConnected ? 'breathing-light-online' : 'breathing-light-offline'}
           style={{
@@ -62,10 +62,10 @@ export default function Header({ nodeCode, wsConnected, isBound, themeMode, onTh
         />
       </div>
 
-      {/* Theme toggle */}
+      {/* 主题切换 */}
       <button
         onClick={onThemeToggle}
-        title={themeMode === 'light' ? 'Light Mode' : themeMode === 'dark' ? 'Dark Mode' : 'System Default'}
+        title={themeMode === 'light' ? '日间模式' : themeMode === 'dark' ? '夜间模式' : '跟随系统'}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 32, height: 32, borderRadius: 8,

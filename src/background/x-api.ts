@@ -1,8 +1,8 @@
 /**
- * Twitter Internal API Wrapper
+ * Twitter 内部 API 封装
  *
- * Uses chrome.cookies to get auth info and calls Twitter REST/GraphQL APIs.
- * Requests are sent from the extension Service Worker using the browser's own Cookie/TLS.
+ * 通过 chrome.cookies 获取认证信息，调用 Twitter REST/GraphQL API。
+ * 请求从扩展 Service Worker 发出，使用浏览器自身的 Cookie/TLS。
  */
 
 import { BEARER_TOKEN, GQL, GQL_FEATURES } from '@shared/constants'
@@ -10,9 +10,9 @@ import type { XCookies, XUserBasic, XFriendshipStatus } from '@shared/types'
 import { readDelay } from '@utils/delay'
 import { logger } from '@utils/logger'
 
-// ===== Cookie Management =====
+// ===== Cookie 管理 =====
 
-/** Get current X login cookies */
+/** 获取当前 X 登录 Cookie */
 export async function getXCookies(): Promise<XCookies | null> {
   try {
     const [ct0, authToken] = await Promise.all([
@@ -28,7 +28,7 @@ export async function getXCookies(): Promise<XCookies | null> {
   }
 }
 
-/** Build request headers */
+/** 构建请求头 */
 function buildHeaders(cookies: XCookies): Record<string, string> {
   return {
     authorization: `Bearer ${BEARER_TOKEN}`,
@@ -40,7 +40,7 @@ function buildHeaders(cookies: XCookies): Record<string, string> {
   }
 }
 
-/** Fetch wrapper with retry and delay */
+/** 带重试和延迟的 fetch 封装 */
 async function xFetch(
   url: string,
   options: RequestInit,
@@ -54,21 +54,21 @@ async function xFetch(
       const resp = await fetch(url, { ...options, headers })
 
       if (resp.status === 429) {
-        // Rate limit — wait and retry
+        // Rate limit — 等待后重试
         const resetTime = resp.headers.get('x-rate-limit-reset')
         const waitMs = resetTime ? (Number(resetTime) * 1000 - Date.now() + 1000) : 60_000
-        logger.warn(`Rate limited, waiting ${Math.ceil(waitMs / 1000)}s`)
+        logger.warn(`Rate limited, 等待 ${Math.ceil(waitMs / 1000)}s`)
         await new Promise((r) => setTimeout(r, Math.min(waitMs, 120_000)))
         continue
       }
 
       if (resp.status === 403) {
-        logger.error('403 Forbidden — Cookie may have expired or account is restricted')
-        throw new XApiError(403, 'Action forbidden, please check X login status')
+        logger.error('403 Forbidden — 可能是 Cookie 过期或账号受限')
+        throw new XApiError(403, '操作被禁止，请检查 X 登录状态')
       }
 
       if (!resp.ok && attempt < retries) {
-        logger.warn(`Request failed ${resp.status}, retry ${attempt + 1}/${retries}`)
+        logger.warn(`请求失败 ${resp.status}, 重试 ${attempt + 1}/${retries}`)
         await readDelay()
         continue
       }
@@ -77,7 +77,7 @@ async function xFetch(
     } catch (err) {
       if (err instanceof XApiError) throw err
       if (attempt < retries) {
-        logger.warn('Network error, retrying...', err)
+        logger.warn('网络错误, 重试中...', err)
         await readDelay()
         continue
       }
@@ -85,7 +85,7 @@ async function xFetch(
     }
   }
 
-  throw new XApiError(0, 'Request failed, all retries exhausted')
+  throw new XApiError(0, '请求失败，已用完重试次数')
 }
 
 export class XApiError extends Error {
@@ -98,13 +98,13 @@ export class XApiError extends Error {
   }
 }
 
-// ===== Current User =====
+// ===== 当前用户 =====
 
-/** Get current logged-in X user info (via Cookie auth) */
+/** 获取当前登录的 X 用户信息 (通过 Cookie 认证) */
 export async function getAuthenticatedUser(
   cookies: XCookies
 ): Promise<XUserBasic | null> {
-  // Method 1: verify_credentials (REST v1.1)
+  // 方法 1: verify_credentials (REST v1.1)
   try {
     const params = new URLSearchParams({
       include_email: 'false',
@@ -122,7 +122,7 @@ export async function getAuthenticatedUser(
     if (resp.ok) {
       const data = (await resp.json()) as any
       if (data.id_str && data.screen_name) {
-        logger.info(`Identified X user: @${data.screen_name}`)
+        logger.info(`识别到 X 用户: @${data.screen_name}`)
         return {
           id: data.id_str,
           screenName: data.screen_name,
@@ -141,12 +141,12 @@ export async function getAuthenticatedUser(
         }
       }
     }
-    logger.warn('verify_credentials failed:', resp.status)
+    logger.warn('verify_credentials 失败:', resp.status)
   } catch (err) {
-    logger.warn('verify_credentials error:', err)
+    logger.warn('verify_credentials 异常:', err)
   }
 
-  // Method 2: account/settings (fallback)
+  // 方法 2: account/settings (备选)
   try {
     const resp = await fetch(
       'https://x.com/i/api/1.1/account/settings.json',
@@ -155,7 +155,7 @@ export async function getAuthenticatedUser(
     if (resp.ok) {
       const data = (await resp.json()) as any
       if (data.screen_name) {
-        logger.info(`Identified X user via settings: @${data.screen_name}`)
+        logger.info(`通过 settings 识别到 X 用户: @${data.screen_name}`)
         return {
           id: '',
           screenName: data.screen_name,
@@ -169,12 +169,12 @@ export async function getAuthenticatedUser(
         }
       }
     }
-    logger.warn('account/settings failed:', resp.status)
+    logger.warn('account/settings 失败:', resp.status)
   } catch (err) {
-    logger.warn('account/settings error:', err)
+    logger.warn('account/settings 异常:', err)
   }
 
-  // Method 3: GraphQL Viewer query (2026-03 new endpoint)
+  // 方法 3: GraphQL Viewer 查询 (2026-03 新端点)
   try {
     const variables = JSON.stringify({
       withCommunitiesMemberships: false,
@@ -197,7 +197,7 @@ export async function getAuthenticatedUser(
       const viewer = json?.data?.viewer?.user_results?.result
       if (viewer?.legacy?.screen_name) {
         const u = viewer.legacy
-        logger.info(`Identified X user via GraphQL Viewer: @${u.screen_name}`)
+        logger.info(`通过 GraphQL Viewer 识别到 X 用户: @${u.screen_name}`)
         return {
           id: viewer.rest_id || '',
           screenName: u.screen_name,
@@ -216,21 +216,21 @@ export async function getAuthenticatedUser(
         }
       }
     }
-    logger.warn('GraphQL Viewer failed:', resp.status)
+    logger.warn('GraphQL Viewer 失败:', resp.status)
   } catch (err) {
-    logger.warn('GraphQL Viewer error:', err)
+    logger.warn('GraphQL Viewer 异常:', err)
   }
 
-  // Method 4: twid cookie + GraphQL UserByRestId (most reliable fallback)
+  // 方法 4: twid cookie + GraphQL UserByRestId (最可靠的后备方案)
   try {
     const tweeidCookie = await chrome.cookies.get({ url: 'https://x.com', name: 'twid' })
     if (tweeidCookie?.value) {
       const match = decodeURIComponent(tweeidCookie.value).match(/u=(\d+)/)
       if (match?.[1]) {
         const userId = match[1]
-        logger.info(`Got user ID from twid cookie: ${userId}`)
+        logger.info(`通过 twid cookie 获取到用户 ID: ${userId}`)
 
-        // Prefer GraphQL UserByRestId for full info
+        // 优先用 GraphQL UserByRestId 查询完整信息
         const variables = JSON.stringify({ userId, withSafetyModeUserFields: true })
         const features = JSON.stringify(GQL_FEATURES)
         const gqlParams = new URLSearchParams({ variables, features })
@@ -243,7 +243,7 @@ export async function getAuthenticatedUser(
           const user = json?.data?.user?.result?.legacy
           const core = json?.data?.user?.result
           if (user?.screen_name) {
-            logger.info(`Identified X user via GraphQL UserByRestId: @${user.screen_name}`)
+            logger.info(`通过 GraphQL UserByRestId 识别到 X 用户: @${user.screen_name}`)
             return {
               id: core?.rest_id || userId,
               screenName: user.screen_name,
@@ -262,9 +262,9 @@ export async function getAuthenticatedUser(
             }
           }
         }
-        logger.warn('GraphQL UserByRestId failed:', gqlResp.status)
+        logger.warn('GraphQL UserByRestId 失败:', gqlResp.status)
 
-        // Fallback: REST users/show
+        // 回退: REST users/show
         const resp = await fetch(
           `https://x.com/i/api/1.1/users/show.json?user_id=${userId}`,
           { method: 'GET', headers: buildHeaders(cookies) }
@@ -272,7 +272,7 @@ export async function getAuthenticatedUser(
         if (resp.ok) {
           const data = (await resp.json()) as any
           if (data.screen_name) {
-            logger.info(`Identified X user via users/show: @${data.screen_name}`)
+            logger.info(`通过 users/show 识别到 X 用户: @${data.screen_name}`)
             return {
               id: data.id_str || match[1],
               screenName: data.screen_name,
@@ -294,16 +294,81 @@ export async function getAuthenticatedUser(
       }
     }
   } catch (err) {
-    logger.warn('twid cookie method error:', err)
+    logger.warn('twid cookie 方法异常:', err)
   }
 
-  logger.error('All methods failed to identify X user')
+  logger.error('所有方法均无法识别 X 用户')
   return null
+}
+
+// ===== 用户查询 =====
+
+/** 通过 screen_name 查询用户信息 */
+export async function getUserByScreenName(
+  cookies: XCookies,
+  screenName: string
+): Promise<XUserBasic | null> {
+  try {
+    const resp = await xFetch(
+      `https://x.com/i/api/1.1/users/show.json?screen_name=${encodeURIComponent(screenName)}`,
+      { method: 'GET' },
+      cookies
+    )
+    if (!resp.ok) return null
+    const data = await resp.json() as any
+    if (!data.screen_name) return null
+    return {
+      id: data.id_str,
+      screenName: data.screen_name,
+      displayName: data.name || data.screen_name,
+      profileImageUrl: data.profile_image_url_https?.replace('_normal', '_200x200'),
+      profileBannerUrl: data.profile_banner_url || undefined,
+      isVerified: data.ext_is_blue_verified || data.verified || false,
+      followersCount: data.followers_count || 0,
+      followingCount: data.friends_count || 0,
+      statusesCount: data.statuses_count || 0,
+      favouritesCount: data.favourites_count || 0,
+      listedCount: data.listed_count || 0,
+      bio: data.description || undefined,
+      location: data.location || undefined,
+      createdAt: data.created_at || undefined,
+    }
+  } catch {
+    return null
+  }
 }
 
 // ===== REST API v1.1 =====
 
-/** Follow user */
+/** 通过 screen_name 关注用户 (无需提前查 userId) */
+export async function followByScreenName(
+  cookies: XCookies,
+  screenName: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const resp = await xFetch(
+      'https://x.com/i/api/1.1/friendships/create.json',
+      {
+        method: 'POST',
+        body: new URLSearchParams({ screen_name: screenName }).toString(),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      },
+      cookies
+    )
+
+    if (!resp.ok) {
+      const text = await resp.text()
+      return { success: false, error: `Follow @${screenName} failed: ${resp.status} ${text}` }
+    }
+
+    logger.info(`已关注 @${screenName}`)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: (err as Error).message }
+  }
+}
+
+/** 关注用户 */
 export async function followUser(
   cookies: XCookies,
   userId: string
@@ -324,14 +389,14 @@ export async function followUser(
       return { success: false, error: `Follow failed: ${resp.status} ${text}` }
     }
 
-    logger.info(`Followed user ${userId}`)
+    logger.info(`已关注用户 ${userId}`)
     return { success: true }
   } catch (err) {
     return { success: false, error: (err as Error).message }
   }
 }
 
-/** Unfollow user */
+/** 取消关注用户 */
 export async function unfollowUser(
   cookies: XCookies,
   userId: string
@@ -351,21 +416,21 @@ export async function unfollowUser(
       return { success: false, error: `Unfollow failed: ${resp.status}` }
     }
 
-    logger.info(`Unfollowed user ${userId}`)
+    logger.info(`已取消关注用户 ${userId}`)
     return { success: true }
   } catch (err) {
     return { success: false, error: (err as Error).message }
   }
 }
 
-/** Batch check follow relationships (max 100 per request) */
+/** 批量检查关注关系 (最多 100 人/次) */
 export async function lookupFriendships(
   cookies: XCookies,
   userIds: string[]
 ): Promise<XFriendshipStatus[]> {
   const results: XFriendshipStatus[] = []
 
-  // Max 100 IDs per request
+  // 每次最多 100 个 ID
   for (let i = 0; i < userIds.length; i += 100) {
     const batch = userIds.slice(i, i + 100)
     const params = new URLSearchParams({ user_id: batch.join(',') })
@@ -398,7 +463,7 @@ export async function lookupFriendships(
   return results
 }
 
-/** Get my following ID list (5000 IDs/page, free!) */
+/** 获取我的关注 ID 列表 (5000 ID/页, 免费!) */
 export async function getFollowingIds(
   cookies: XCookies,
   onProgress?: (count: number) => void
@@ -420,7 +485,7 @@ export async function getFollowingIds(
     )
 
     if (!resp.ok) {
-      logger.error(`Failed to get following IDs: ${resp.status}`)
+      logger.error(`获取关注 ID 失败: ${resp.status}`)
       break
     }
 
@@ -429,7 +494,7 @@ export async function getFollowingIds(
     allIds.push(...ids)
 
     onProgress?.(allIds.length)
-    logger.info(`Fetched ${allIds.length} following IDs`)
+    logger.info(`已获取 ${allIds.length} 个关注 ID`)
 
     cursor = data.next_cursor_str || '0'
 
@@ -441,7 +506,7 @@ export async function getFollowingIds(
   return allIds
 }
 
-/** Get my follower ID list (5000 IDs/page, free!) */
+/** 获取我的粉丝 ID 列表 (5000 ID/页, 免费!) */
 export async function getFollowerIds(
   cookies: XCookies,
   onProgress?: (count: number) => void
@@ -463,7 +528,7 @@ export async function getFollowerIds(
     )
 
     if (!resp.ok) {
-      logger.error(`Failed to get follower IDs: ${resp.status}`)
+      logger.error(`获取粉丝 ID 失败: ${resp.status}`)
       break
     }
 
@@ -472,7 +537,7 @@ export async function getFollowerIds(
     allIds.push(...ids)
 
     onProgress?.(allIds.length)
-    logger.info(`Fetched ${allIds.length} follower IDs`)
+    logger.info(`已获取 ${allIds.length} 个粉丝 ID`)
 
     cursor = data.next_cursor_str || '0'
 
@@ -486,7 +551,7 @@ export async function getFollowerIds(
 
 // ===== GraphQL API =====
 
-/** GraphQL request generic wrapper */
+/** GraphQL 请求通用封装 */
 async function graphqlRequest(
   cookies: XCookies,
   queryId: string,
@@ -511,7 +576,7 @@ async function graphqlRequest(
   return resp.json()
 }
 
-/** Search blue-verified users */
+/** 搜索蓝V用户 */
 export async function searchBlueVerified(
   cookies: XCookies,
   query: string,
@@ -553,26 +618,26 @@ export async function searchBlueVerified(
     for (const inst of instructions) {
       const entries = inst.entries || []
       for (const entry of entries) {
-        // User entry
+        // 用户条目
         const result = entry.content?.itemContent?.user_results?.result
         if (result?.legacy) {
           users.push(parseUserLegacy(result))
         }
 
-        // Pagination cursor
+        // 翻页光标
         if (entry.content?.cursorType === 'Bottom') {
           nextCursor = entry.content.value
         }
       }
     }
   } catch (err) {
-    logger.error('Failed to parse search results:', err)
+    logger.error('解析搜索结果失败:', err)
   }
 
   return { users, nextCursor }
 }
 
-/** Create tweet */
+/** 发推 */
 export async function createTweet(
   cookies: XCookies,
   text: string,
@@ -614,7 +679,7 @@ export async function createTweet(
   }
 }
 
-/** Like tweet */
+/** 点赞 */
 export async function likeTweet(
   cookies: XCookies,
   tweetId: string
@@ -638,7 +703,7 @@ export async function likeTweet(
   }
 }
 
-/** Retweet */
+/** 转发 */
 export async function retweet(
   cookies: XCookies,
   tweetId: string
@@ -662,9 +727,9 @@ export async function retweet(
   }
 }
 
-// ===== Utility Functions =====
+// ===== 工具函数 =====
 
-/** Parse Twitter legacy user object */
+/** 解析 Twitter legacy 用户对象 */
 function parseUserLegacy(result: any): XUserBasic {
   const legacy = result.legacy
   return {

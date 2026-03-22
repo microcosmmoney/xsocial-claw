@@ -43,7 +43,7 @@ function StepRow({ step }: { step: { action: string; description: string; status
 }
 
 export default function CurrentTaskPage({ task, hasXAccount }: Props) {
-  // No task
+  // 无任务
   if (!task) {
     if (!hasXAccount) {
       return (
@@ -53,13 +53,13 @@ export default function CurrentTaskPage({ task, hasXAccount }: Props) {
           padding: '40px 20px', color: '#555',
         }}>
           <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.4 }}>🔗</div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: '#1a1a2e', marginBottom: 8 }}>Please bind your X account first</p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: '#1a1a2e', marginBottom: 8 }}>请先绑定推特账号</p>
           <div style={{
             textAlign: 'left', fontSize: 12, color: '#888', lineHeight: 1.8,
             background: '#fff', padding: '14px 16px', borderRadius: 10,
             border: '1px solid #e0e0e5', width: '100%', maxWidth: 280,
           }}>
-            {['Sign in at xsocial.cc', 'Go to Production > My Accounts', 'Bind your X account to this node'].map((text, i) => (
+            {['登录 xsocial.cc', '进入 生产中心 > 我的账号', '绑定推特账号到此节点'].map((text, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: i < 2 ? 6 : 0 }}>
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -81,13 +81,13 @@ export default function CurrentTaskPage({ task, hasXAccount }: Props) {
         padding: 40, color: '#aaa',
       }}>
         <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>&#9201;</div>
-        <p style={{ fontSize: 13 }}>Waiting for task assignment...</p>
-        <p style={{ fontSize: 11, marginTop: 4, color: '#bbb' }}>Progress will appear here once a task starts</p>
+        <p style={{ fontSize: 13 }}>等待任务分配...</p>
+        <p style={{ fontSize: 11, marginTop: 4, color: '#bbb' }}>任务开始后将在此实时显示进度</p>
       </div>
     )
   }
 
-  // Has task (running or completed)
+  // 有任务（运行中或已完成）
   const isCompleted = task.status === 'completed' || task.status === 'aborted'
   const elapsed = (task.completedAt || Date.now()) - task.startedAt
   const minutes = Math.floor(elapsed / 60000)
@@ -95,7 +95,7 @@ export default function CurrentTaskPage({ task, hasXAccount }: Props) {
 
   return (
     <div style={{ padding: '12px 14px', flex: 1, overflowY: 'auto' }}>
-      {/* Task header */}
+      {/* 任务头部 */}
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         marginBottom: 10,
@@ -114,7 +114,7 @@ export default function CurrentTaskPage({ task, hasXAccount }: Props) {
               background: task.status === 'completed' ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
               padding: '2px 6px', borderRadius: 4,
             }}>
-              {task.status === 'completed' ? 'Completed' : 'Aborted'}
+              {task.status === 'completed' ? '已完成' : '已中止'}
             </span>
           )}
         </div>
@@ -123,14 +123,14 @@ export default function CurrentTaskPage({ task, hasXAccount }: Props) {
         </span>
       </div>
 
-      {/* Step list — always visible */}
+      {/* 步骤列表 — 始终显示 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 12 }}>
         {task.steps.map((step, i) => (
           <StepRow key={i} step={step} />
         ))}
       </div>
 
-      {/* AI Summary */}
+      {/* AI 汇总 */}
       {task.summary && (
         <div style={{
           padding: '12px 14px', borderRadius: 10,
@@ -141,7 +141,7 @@ export default function CurrentTaskPage({ task, hasXAccount }: Props) {
             fontSize: 12, fontWeight: 700, color: '#ff5722', marginBottom: 8,
             display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            <span style={{ fontSize: 14 }}>🤖</span> AI Browse Summary
+            <span style={{ fontSize: 14 }}>🤖</span> AI 浏览汇总
           </p>
           <div style={{
             fontSize: 13, color: '#333', lineHeight: 1.7,
@@ -152,7 +152,7 @@ export default function CurrentTaskPage({ task, hasXAccount }: Props) {
         </div>
       )}
 
-      {/* Clear completed task */}
+      {/* 清除已完成任务 */}
       {isCompleted && (
         <button
           onClick={async () => {
@@ -165,7 +165,7 @@ export default function CurrentTaskPage({ task, hasXAccount }: Props) {
             fontSize: 12, color: '#888', cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
-          Clear Current Task
+          清除当前任务
         </button>
       )}
     </div>

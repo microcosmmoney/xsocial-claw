@@ -1,24 +1,27 @@
 /**
  * xSocial v4 Chrome Extension — Background Service Worker
  *
- * v4 Architecture: Server (brain) + Browser (hands) = Smart Claw
- * - WebSocket persistent connection to xSocial WS server
- * - Receives task:execute / step:next commands, forwards to content script
- * - Reports execution results + accessibility tree snapshot via step:result
- * - Retains Twitter internal API capabilities from x-api.ts
+ * v4 架构: 服务端(大脑) + 浏览器(手) = 智能小龙虾
+ * - WebSocket 持久连接到 xSocial WS 服务器
+ * - 接收 task:execute / step:next 指令，转发到 content script 执行
+ * - 通过 step:result 回报执行结果 + 无障碍树 snapshot
+ * - 保留 x-api.ts 的 Twitter 内部 API 操作能力
  */
 
 import { XSOCIAL_API, XSOCIAL_WS } from '@shared/constants'
 import { STORAGE_KEYS } from '@shared/types'
 import { logger } from '@utils/logger'
-import { getXCookies, getAuthenticatedUser, followUser, unfollowUser, createTweet, likeTweet, retweet } from './x-api'
+import { getXCookies, getAuthenticatedUser, getUserByScreenName, followUser, unfollowUser, createTweet, likeTweet, retweet, getFollowingIds, getFollowerIds } from './x-api'
 import { scanViaApi, startApiUnfollow, pauseUnfollow, getUnfollowStatus, restoreState } from './unfollow-scheduler'
+import { getFollowAutoState, getFollowAutoConfig, updateFollowAutoConfig, startFollowAutomation, pauseFollowAutomation, restoreFollowState } from './follow-automation'
+import { getLikeAutoState, getLikeAutoConfig, setLikeAutoConfig, toggleLikeAuto, restoreLikeState } from './like-companion'
+import { getModelState, getPresetModels, saveUserModel, removeUserModel, setActiveModel, testModel, callUserModel, hasActiveUserModel, restoreModelState } from './model-manager'
 
-// ===== Persistent Storage (chrome.storage.sync — survives uninstall/reinstall) =====
+// ===== 持久化存储 (chrome.storage.sync — 卸载重装后自动恢复) =====
 
 const SYNC_KEYS = ['device_id', 'device_name', 'node_code', 'is_bound', 'bound_user_id', 'xsocial_token'] as const
 
-/** On startup, restore from sync to local (sync takes priority; local is cleared on reinstall but sync persists) */
+/** 启动时从 sync 恢复到 local (sync 优先, 卸载重装后 local 被清空但 sync 保留) */
 async function restoreFromSync(): Promise<void> {
   try {
     const synced = await chrome.storage.sync.get(SYNC_KEYS as unknown as string[])
@@ -33,14 +36,14 @@ async function restoreFromSync(): Promise<void> {
 
     if (Object.keys(toRestore).length > 0) {
       await chrome.storage.local.set(toRestore)
-      logger.info(`[SW] Restored ${Object.keys(toRestore).length} items from sync: ${Object.keys(toRestore).join(', ')}`)
+      logger.info(`[SW] 从 sync 恢复 ${Object.keys(toRestore).length} 项: ${Object.keys(toRestore).join(', ')}`)
     }
   } catch (err) {
-    logger.error('[SW] sync restore failed:', err)
+    logger.error('[SW] sync 恢复失败:', err)
   }
 }
 
-/** Sync critical data to chrome.storage.sync (persists across uninstall) */
+/** 将关键数据同步写入 sync (持久化, 卸载不丢) */
 async function saveToSync(data: Record<string, unknown>): Promise<void> {
   try {
     const syncData: Record<string, unknown> = {}
@@ -50,13 +53,13 @@ async function saveToSync(data: Record<string, unknown>): Promise<void> {
     if (Object.keys(syncData).length > 0) {
       await chrome.storage.sync.set(syncData)
     }
-  } catch { /* sync write failure doesn't affect functionality */ }
+  } catch { /* sync 写入失败不影响功能 */ }
 }
 
-// ===== Device ID Management =====
+// ===== 设备 ID 管理 =====
 
 async function getOrCreateDeviceId(): Promise<string> {
-  // Prefer local (fast), fall back to sync (reinstall recovery), generate new if none
+  // 优先读 local (快), 没有则读 sync (卸载重装恢复), 都没有才生成新的
   const local = await chrome.storage.local.get(STORAGE_KEYS.deviceId)
   if (local[STORAGE_KEYS.deviceId]) {
     return local[STORAGE_KEYS.deviceId]
@@ -64,17 +67,17 @@ async function getOrCreateDeviceId(): Promise<string> {
 
   const synced = await chrome.storage.sync.get(STORAGE_KEYS.deviceId)
   if (synced[STORAGE_KEYS.deviceId]) {
-    // Restore from sync to local
+    // 从 sync 恢复到 local
     await chrome.storage.local.set({ [STORAGE_KEYS.deviceId]: synced[STORAGE_KEYS.deviceId] })
-    logger.info(`[SW] Restored from sync: deviceId: ${synced[STORAGE_KEYS.deviceId]}`)
+    logger.info(`[SW] 从 sync 恢复 deviceId: ${synced[STORAGE_KEYS.deviceId]}`)
     return synced[STORAGE_KEYS.deviceId]
   }
 
-  // Genuine first install: generate UUID, write to both local + sync
+  // 真正的首次安装: 生成 UUID, 同时写入 local + sync
   const deviceId = crypto.randomUUID()
   await chrome.storage.local.set({ [STORAGE_KEYS.deviceId]: deviceId })
   await saveToSync({ [STORAGE_KEYS.deviceId]: deviceId })
-  logger.info(`[SW] Generated new deviceId: ${deviceId}`)
+  logger.info(`[SW] 生成新 deviceId: ${deviceId}`)
   return deviceId
 }
 
@@ -88,14 +91,29 @@ async function getToken(): Promise<string | null> {
   return result[STORAGE_KEYS.xsocialToken] || null
 }
 
-// ===== WebSocket Connection Management =====
+// ===== 动态配置拉取 (模型列表/GQL IDs 等，避免写死) =====
+
+async function fetchDynamicConfig(): Promise<void> {
+  try {
+    const res = await fetch(`${XSOCIAL_API}/api/market/follow-pool/extension/dynamic-config`)
+    if (!res.ok) return
+    const data = await res.json()
+    // 缓存到本地，下次离线时也能用
+    await chrome.storage.local.set({ dynamic_config: data, dynamic_config_at: Date.now() })
+    logger.info(`[SW] 动态配置已更新: ${Object.keys(data).join(', ')}`)
+  } catch {
+    // 拉取失败不影响启动，用本地缓存或代码默认值
+  }
+}
+
+// ===== WebSocket 连接管理 =====
 
 let ws: WebSocket | null = null
 let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 let activeTabId: number | null = null
 
-const EXT_VERSION = '2.1.0'
+const EXT_VERSION = chrome.runtime.getManifest().version
 
 async function connectWS() {
   if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return
@@ -113,19 +131,19 @@ async function connectWS() {
     const deviceId = await getOrCreateDeviceId()
     const deviceName = await getDeviceName()
 
-    // Check for manual recovery request (highest priority)
+    // 检查是否有手动恢复请求 (最高优先级)
     const recoverStore = await chrome.storage.local.get('recover_node_code')
     const recoverNodeCode = recoverStore.recover_node_code || undefined
     if (recoverNodeCode) await chrome.storage.local.remove('recover_node_code')
 
-    // When recoverNodeCode is set, don't send token - prevent token recovery from overriding manual recovery
+    // ★ 有 recoverNodeCode 时不发 token — 防止 token 恢复抢占手动恢复
     let token: string | null = null
     if (!recoverNodeCode) {
       const boundStore = await chrome.storage.local.get('is_bound')
       token = boundStore.is_bound ? await getToken() : null
     }
 
-    // Get currently logged-in X user (for automatic node identification after reinstall)
+    // 获取当前浏览器登录的推特用户 (用于重装后自动识别节点)
     let xScreenName: string | undefined
     if (!recoverNodeCode) {
       try {
@@ -134,7 +152,7 @@ async function connectWS() {
           const xUser = await getAuthenticatedUser(cookies)
           if (xUser?.screenName) xScreenName = xUser.screenName
         }
-      } catch { /* X not logged in */ }
+      } catch { /* X 未登录 */ }
     }
 
     ws!.send(JSON.stringify({
@@ -194,14 +212,21 @@ function sendWS(type: string, payload: any) {
 
 function startHeartbeat() {
   stopHeartbeat()
-  heartbeatTimer = setInterval(() => {
+  heartbeatTimer = setInterval(async () => {
     if (ws?.readyState === WebSocket.OPEN) {
+      // 读取本地 configVersion 用于与服务端比对
+      let configVersion = 0
+      try {
+        const store = await chrome.storage.local.get('toolbox_config_version')
+        configVersion = store.toolbox_config_version || 0
+      } catch { /* ignore */ }
+
       ws.send(JSON.stringify({
         type: 'ext:heartbeat',
-        payload: { timestamp: Date.now(), version: EXT_VERSION },
+        payload: { timestamp: Date.now(), version: EXT_VERSION, configVersion },
       }))
     }
-  }, 10_000)  // 10s heartbeat, prevents MV3 service worker from sleeping and killing WS
+  }, 10_000)  // 10秒心跳, 防止 MV3 service worker 休眠杀 WS
 }
 
 function stopHeartbeat() {
@@ -211,7 +236,7 @@ function stopHeartbeat() {
   }
 }
 
-// ===== WebSocket Message Handling (server -> browser) =====
+// ===== WebSocket 消息处理 (服务端 → 浏览器) =====
 
 async function handleWSMessage(msg: { type: string; payload?: any }) {
   switch (msg.type) {
@@ -224,7 +249,7 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
       const { nodeCode, bound, userId, token: newToken } = msg.payload || {}
       if (nodeCode) {
         const data: Record<string, unknown> = { node_code: nodeCode, is_bound: !!bound, bound_user_id: userId || null }
-        // Server may auto-issue new token after reinstall
+        // 服务端可能在重装后自动签发新 token
         if (newToken) {
           data[STORAGE_KEYS.xsocialToken] = newToken
           logger.info('[WS] Token restored from server')
@@ -264,7 +289,7 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
       const { taskId, steps, mode, title, taskType } = msg.payload || {}
       logger.info(`[WS] Task received: ${taskId}, mode=${mode}, steps=${steps?.length}`)
 
-      // Store current task for popup display
+      // 存储当前任务给 popup 显示
       await chrome.storage.local.set({
         current_task: {
           taskId, title: title || taskType || 'Task',
@@ -301,18 +326,18 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
       const { taskId, stepOrder, action, config } = msg.payload || {}
       logger.info(`[WS] Step ${stepOrder}: ${action}`)
 
-      // Update current step in popup
+      // 更新 popup 中的当前步骤
       const taskStore = await chrome.storage.local.get('current_task')
       if (taskStore.current_task) {
         const ct = taskStore.current_task
-        // Mark previous steps as completed
+        // 标记之前的步骤为完成
         if (ct.steps && stepOrder > 1) {
           for (let i = 0; i < Math.min(stepOrder - 1, ct.steps.length); i++) {
             ct.steps[i].status = 'completed'
           }
         }
         ct.currentStep = stepOrder
-        // Dynamically add steps
+        // 动态添加步骤
         while (ct.steps.length < stepOrder) {
           ct.steps.push({ action, description: msg.payload?.description || action, status: 'pending' })
         }
@@ -334,7 +359,7 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
             result: result?.data || { snapshot: '', url: '', title: '' },
           })
         } else if (action === 'scan') {
-          // Pure perception - content-script snapshot
+          // 纯感知 — content-script snapshot
           const result = await sendToActiveTab({ type: 'SNAPSHOT' })
           sendWS('step:result', {
             taskId,
@@ -344,7 +369,7 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
             error: result?.error,
           })
         } else if (action === 'action' || action === 'scroll') {
-          // Execute action -> content-script executes and returns new snapshot
+          // 执行操作 → content-script 执行并返回新 snapshot
           const actionPayload = action === 'scroll'
             ? { type: 'scroll', pixels: config?.amount || 600 }
             : config
@@ -397,7 +422,7 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
         })
       }
 
-      // Update current step in popup as completed
+      // 更新 popup 中当前步骤为完成
       const taskAfter = await chrome.storage.local.get('current_task')
       if (taskAfter.current_task?.steps) {
         const ct = taskAfter.current_task
@@ -411,7 +436,7 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
 
     case 'step:done': {
       logger.info(`[WS] Task completed: ${msg.payload?.taskId}`)
-      // Save AI summary (if available)
+      // 保存 AI 汇总（如果有）
       if (msg.payload?.summary) {
         await chrome.storage.local.set({ task_summary: msg.payload.summary })
       }
@@ -430,14 +455,30 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
       break
     }
 
-    // ===== Unfollow Tasks (Follow Check) =====
+    // ===== 工具箱: 平台下发指令 =====
+
+    case 'tool:command': {
+      const { tool, action, config: toolConfig } = msg.payload || {}
+      logger.info(`[WS] tool:command → ${tool}:${action}`)
+      await handleToolCommand(tool, action, toolConfig)
+      break
+    }
+
+    case 'tool:config-sync': {
+      // 服务端推送的完整配置 (心跳 configVersion 不匹配时)
+      logger.info(`[WS] tool:config-sync → v${msg.payload?.configVersion}`)
+      await applyToolConfig(msg.payload)
+      break
+    }
+
+    // ===== 取关任务 (回关检查) =====
 
     case 'task:unfollow-scan': {
       const { taskId, xScreenName, scanMode, token } = msg.payload || {}
-      logger.info(`[WS] Unfollow scan: taskId=${taskId}, mode=${scanMode}`)
+      logger.info(`[WS] 取关扫描: taskId=${taskId}, mode=${scanMode}`)
 
       if (scanMode === 'api') {
-        // Mode A: API batch scan
+        // 方案A: API 批量扫描
         try {
           const result = await scanViaApi(taskId, xScreenName, token)
           sendWS('unfollow:scan-complete', {
@@ -450,11 +491,11 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
           sendWS('unfollow:scan-error', { taskId, error: err.message })
         }
       } else {
-        // Mode B: Page scroll - navigate to "Following" page first
+        // 方案B: 页面滚动 → 需要先导航到"正在关注"页面
         try {
           await navigateActiveTab(`https://x.com/${xScreenName}/following`)
           await sleep(3000)
-          // Notify content-script to start scroll scan
+          // 通知 content-script 开始滚动扫描
           const result = await sendToActiveTab({
             type: 'UNFOLLOW_SCAN_PAGE',
             payload: { taskId, xScreenName, token },
@@ -473,10 +514,10 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
 
     case 'task:unfollow-execute': {
       const { taskId, nonFollowers, config, startIndex, token, scanMode } = msg.payload || {}
-      logger.info(`[WS] Unfollow execution: taskId=${taskId}, mode=${scanMode}, startIndex=${startIndex}, count=${nonFollowers?.length}`)
+      logger.info(`[WS] 取关执行: taskId=${taskId}, mode=${scanMode}, startIndex=${startIndex}, count=${nonFollowers?.length}`)
 
       if (scanMode === 'page') {
-        // Mode B: Page scroll unfollow -> content-script executes
+        // 方案B: 页面滚动取关 → content-script 执行
         const result = await sendToActiveTab({
           type: 'UNFOLLOW_EXECUTE_PAGE',
           payload: { taskId, config, startIndex, token },
@@ -485,7 +526,7 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
           sendWS('unfollow:error', { taskId, error: result?.error || 'Content script not ready' })
         }
       } else {
-        // Mode A: API unfollow
+        // 方案A: API 取关
         startApiUnfollow(taskId, nonFollowers, config, startIndex || 0, token)
           .catch((err) => {
             sendWS('unfollow:error', { taskId, error: err.message })
@@ -495,9 +536,9 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
     }
 
     case 'task:unfollow-pause': {
-      logger.info('[WS] Unfollow paused')
+      logger.info('[WS] 取关暂停')
       pauseUnfollow()
-      // Also notify content-script to stop (Mode B)
+      // 也通知 content-script 停止 (方案B)
       await sendToActiveTab({ type: 'UNFOLLOW_PAUSE' })
       break
     }
@@ -508,7 +549,7 @@ async function handleWSMessage(msg: { type: string; payload?: any }) {
   }
 }
 
-// ===== Twitter API Direct Operations (via x-api.ts) =====
+// ===== Twitter API 直接操作 (通过 x-api.ts) =====
 
 async function executeXApiAction(
   config: { operation: string; [key: string]: any }
@@ -532,7 +573,7 @@ async function executeXApiAction(
   }
 }
 
-// ===== Tab Management =====
+// ===== Tab 管理 =====
 
 async function getActiveXTab(): Promise<number | null> {
   // Prefer existing X/Twitter tab
@@ -586,7 +627,7 @@ async function sendToActiveTab(message: any): Promise<any> {
   }
 }
 
-// ===== Chrome Message Router (popup / content script -> service worker) =====
+// ===== Chrome 消息路由 (popup / content script → service worker) =====
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleMessage(message, sender)
@@ -633,7 +674,7 @@ async function handleMessage(
       }
     }
 
-    // Execute paste in MAIN world (Draft.js only recognizes input in MAIN world)
+    // 在 MAIN world 执行 paste (Draft.js 只在 MAIN world 才能识别)
     case 'EXECUTE_IN_MAIN_WORLD': {
       const tabId = activeTabId || (await chrome.tabs.query({ url: 'https://x.com/*' }))?.[0]?.id
       if (!tabId) return { success: false, error: 'No x.com tab' }
@@ -645,12 +686,12 @@ async function handleMessage(
           func: (text: string) => {
             const el = document.querySelector('[contenteditable="true"]') as HTMLElement
             if (!el) return { success: false, error: 'No contenteditable found' }
-            // Check if content already exists (prevent duplicate input)
+            // 检查是否已经有内容 (防止重复输入)
             if (el.textContent && el.textContent.trim().length > 0) {
               return { success: true, skipped: true, existing: el.textContent.trim().slice(0, 30) }
             }
             el.focus()
-            // Paste directly, don't clear (clearing breaks Draft.js state)
+            // 直接 paste, 不清空 (清空会破坏 Draft.js 状态)
             const dt = new DataTransfer()
             dt.setData('text/plain', text)
             el.dispatchEvent(new ClipboardEvent('paste', {
@@ -669,14 +710,14 @@ async function handleMessage(
       }
     }
 
-    // Device ID query
+    // 设备 ID 查询
     case 'GET_DEVICE_ID': {
       const deviceId = await getOrCreateDeviceId()
       const deviceName = await getDeviceName()
       return { success: true, data: { deviceId, deviceName } }
     }
 
-    // Device rename
+    // 设备重命名
     case 'SET_DEVICE_NAME': {
       const newName = message.payload?.name
       if (newName) {
@@ -685,12 +726,12 @@ async function handleMessage(
       return { success: true }
     }
 
-    // ===== Email/password login (extension -> xSocial -> Microcosm auth chain) =====
-    // Note: Login only verifies identity + gets node list, doesn't store token or trigger WS reconnect
-    // Token is stored and reconnected only after user selects a node (SELECT_NODE)
+    // ===== 邮箱密码登录 (扩展 → xSocial → Microcosm 认证链) =====
+    // 注意: 登录只验证身份+获取节点列表，不存 token、不触发 WS 重连
+    // token 在用户选择节点 (SELECT_NODE) 后才存储并重连
     case 'MICROCOSM_LOGIN': {
       const { email: loginEmail, password: loginPwd } = message.payload || {}
-      if (!loginEmail || !loginPwd) return { success: false, error: 'Please enter email and password' }
+      if (!loginEmail || !loginPwd) return { success: false, error: '请输入邮箱和密码' }
 
       try {
         const res = await fetch(`${XSOCIAL_API}/api/auth/extension-token`, {
@@ -701,24 +742,24 @@ async function handleMessage(
         const data = await res.json()
 
         if (!res.ok || !data.token) {
-          return { success: false, error: data.error || 'Login failed' }
+          return { success: false, error: data.error || '登录失败' }
         }
 
-        // Don't store token yet! Wait until user selects a node
-        // Prevent auto-binding new node during WS heartbeat/reconnect
+        // ⚠️ 不存 token! 等用户选择节点后再存
+        // 防止 WS 心跳/重连时自动绑定新节点
         return { success: true, data: { token: data.token, nodes: data.nodes || [], userId: data.userId } }
       } catch (err: any) {
-        return { success: false, error: err.message || 'Network error' }
+        return { success: false, error: err.message || '网络错误' }
       }
     }
 
-    // Unfollow status query (popup -> service-worker)
+    // 取关状态查询 (popup → service-worker)
     case 'GET_UNFOLLOW_STATUS': {
       const status = getUnfollowStatus()
       return { success: true, data: status }
     }
 
-    // Unfollow scan (popup -> service-worker, direct execution without WS)
+    // 取关扫描 (popup → service-worker, 直接执行不走WS)
     case 'UNFOLLOW_SCAN': {
       const { taskId, xScreenName, scanMode, token } = message.payload || {}
       if (scanMode === 'api') {
@@ -729,7 +770,7 @@ async function handleMessage(
           return { success: false, error: err.message }
         }
       } else {
-        // Mode B: Navigate to following page, content-script scans autonomously
+        // 方案B: 导航到关注页面, content-script 自行扫描
         await navigateActiveTab(`https://x.com/${xScreenName}/following`)
         await sleep(3000)
         const result = await sendToActiveTab({
@@ -740,7 +781,7 @@ async function handleMessage(
       }
     }
 
-    // Unfollow execution (popup -> service-worker, direct execution without WS)
+    // 取关执行 (popup → service-worker, 直接执行不走WS)
     case 'UNFOLLOW_EXECUTE': {
       const { taskId, nonFollowers: nf, config: cfg, startIndex: si, token: tk, scanMode: sm } = message.payload || {}
       if (sm === 'page') {
@@ -755,42 +796,42 @@ async function handleMessage(
       }
     }
 
-    // Unfollow paused (popup → service-worker)
+    // 取关暂停 (popup → service-worker)
     case 'UNFOLLOW_PAUSE': {
       pauseUnfollow()
       await sendToActiveTab({ type: 'UNFOLLOW_PAUSE' })
       return { success: true }
     }
 
-    // ===== OAuth Login: Open xSocial website -> Microcosm OAuth -> extract token =====
+    // ===== OAuth 登录: 打开 xSocial 网站 → Microcosm OAuth → 提取 token =====
     case 'LOGIN_VIA_XSOCIAL': {
       try {
-        // Open xSocial login page
+        // 打开 xSocial 登录页
         const tab = await chrome.tabs.create({ url: `${XSOCIAL_API}/login`, active: true })
-        if (!tab.id) return { success: false, error: 'Unable to open tab' }
+        if (!tab.id) return { success: false, error: '无法打开标签页' }
 
         const loginTabId = tab.id
 
-        // Poll: wait for user to complete OAuth login, then extract token
+        // 轮询: 等用户完成 OAuth 登录后提取 token
         const loginResult = await new Promise<any>((resolve, reject) => {
           let attempts = 0
-          const maxAttempts = 120 // 5 min timeout (2.5s × 120)
+          const maxAttempts = 120 // 5分钟超时 (2.5s × 120)
 
           const poll = setInterval(async () => {
             attempts++
             if (attempts > maxAttempts) {
               clearInterval(poll)
-              reject(new Error('Login timed out, please try again'))
+              reject(new Error('登录超时，请重试'))
               return
             }
 
             try {
-              // Check if tab still exists + is on xsocial.cc (after OAuth callback)
+              // 检查 tab 是否还在 + 是否在 xsocial.cc 上 (OAuth 回调后)
               const tabInfo = await chrome.tabs.get(loginTabId)
-              if (!tabInfo.url?.includes('xsocial.cc')) return // Still on Microcosm login page
-              if (tabInfo.status !== 'complete') return // Page still loading
+              if (!tabInfo.url?.includes('xsocial.cc')) return // 还在 Microcosm 登录页
+              if (tabInfo.status !== 'complete') return // 页面还在加载
 
-              // Extract Microcosm access token from page localStorage
+              // 从页面 localStorage 提取 Microcosm access token
               const [execResult] = await chrome.scripting.executeScript({
                 target: { tabId: loginTabId },
                 world: 'MAIN',
@@ -799,21 +840,21 @@ async function handleMessage(
                   if (!accessToken) return { error: 'not_logged_in' }
 
                   try {
-                    // Exchange Microcosm token for extension token
+                    // 用 Microcosm token 换取扩展 token
                     const tokenRes = await fetch('/api/auth/extension-token', {
                       method: 'POST',
                       headers: { 'Authorization': `Bearer ${accessToken}` },
                     })
                     const tokenData = await tokenRes.json()
-                    if (!tokenData.token) return { error: tokenData.error || 'Failed to get token' }
+                    if (!tokenData.token) return { error: tokenData.error || '获取 token 失败' }
 
-                    // Also fetch user's extension node list
+                    // 同时获取用户的扩展节点列表
                     const nodesRes = await fetch('/api/market/manager/extensions', {
                       headers: { 'Authorization': `Bearer ${accessToken}` },
                     })
                     const nodesData = await nodesRes.json()
 
-                    // Get user info
+                    // 获取用户信息
                     const userStr = localStorage.getItem('mc_user')
                     const user = userStr ? JSON.parse(userStr) : null
 
@@ -823,7 +864,7 @@ async function handleMessage(
                       user,
                     }
                   } catch (err: any) {
-                    return { error: err.message || 'Request failed' }
+                    return { error: err.message || '请求失败' }
                   }
                 },
               })
@@ -832,28 +873,28 @@ async function handleMessage(
               if (data?.token) {
                 clearInterval(poll)
 
-                // Store token
+                // 存储 token
                 await chrome.storage.local.set({
                   [STORAGE_KEYS.xsocialToken]: data.token,
                 })
                 await saveToSync({ xsocial_token: data.token })
 
-                // Close login tab
+                // 关闭登录标签页
                 try { chrome.tabs.remove(loginTabId) } catch {}
 
                 resolve(data)
               }
             } catch {
-              // Tab may be navigating, ignore
+              // Tab 可能正在导航，忽略
             }
           }, 2500)
 
-          // Clean up when user manually closes tab
+          // 用户手动关闭 tab 时清理
           const onRemoved = (closedTabId: number) => {
             if (closedTabId === loginTabId) {
               clearInterval(poll)
               chrome.tabs.onRemoved.removeListener(onRemoved)
-              reject(new Error('Login page was closed'))
+              reject(new Error('登录页面已关闭'))
             }
           }
           chrome.tabs.onRemoved.addListener(onRemoved)
@@ -861,28 +902,28 @@ async function handleMessage(
 
         return { success: true, data: loginResult }
       } catch (err: any) {
-        return { success: false, error: err.message || 'Login failed' }
+        return { success: false, error: err.message || '登录失败' }
       }
     }
 
-    // ===== Select Node to Restore Connection =====
+    // ===== 选择节点恢复连接 =====
     case 'SELECT_NODE': {
       const { nodeCode: selectedCode, token: loginToken } = message.payload || {}
-      if (!selectedCode) return { success: false, error: 'Please select a node' }
+      if (!selectedCode) return { success: false, error: '请选择节点' }
 
-      // Set is_bound + token + nodeCode immediately (prevent popup polling from seeing unbound state)
+      // ★ 立即设置 is_bound + token + nodeCode（防止 popup 轮询时判定为未绑定）
       const updates: Record<string, unknown> = {
         node_code: selectedCode,
         is_bound: true,
       }
       if (loginToken) {
         updates[STORAGE_KEYS.xsocialToken] = loginToken
-        updates.bound_user_id = 'pending' // WS auth:result will update to real value
+        updates.bound_user_id = 'pending' // WS auth:result 会更新为真实值
       }
       await chrome.storage.local.set(updates)
       await saveToSync({ node_code: selectedCode, is_bound: true, ...(loginToken ? { xsocial_token: loginToken } : {}) })
 
-      // Restore via WS: store recover_node_code then reconnect
+      // 通过 WS 恢复: 存储 recover_node_code 然后重连
       await chrome.storage.local.set({ recover_node_code: selectedCode })
       disconnectWS()
       setTimeout(connectWS, 500)
@@ -890,7 +931,7 @@ async function handleMessage(
       return { success: true }
     }
 
-    // Popup: query node status
+    // Popup: 查询节点状态
     case 'GET_NODE_STATUS': {
       const deviceId = await getOrCreateDeviceId()
       const deviceName = await getDeviceName()
@@ -899,7 +940,7 @@ async function handleMessage(
       let isBound = !!store.is_bound
       const nodeCode = store.node_code || null
 
-      // Fetch latest status + bound X account info from server
+      // 从服务端拉取最新状态 + 绑定的推特账号信息
       let xUser = store[STORAGE_KEYS.xUserInfo] || null
       if (nodeCode) {
         try {
@@ -911,12 +952,12 @@ async function handleMessage(
             disconnectWS()
             setTimeout(connectWS, 500)
           }
-          // Server returned bound X account info -> cache locally
+          // 服务端返回了绑定的推特账号信息 → 缓存到本地
           if (data.xAccount) {
             xUser = data.xAccount
             await chrome.storage.local.set({ [STORAGE_KEYS.xUserInfo]: data.xAccount })
           }
-        } catch { /* Query failed, use local cache */ }
+        } catch { /* 查询失败用本地缓存 */ }
       }
 
       return {
@@ -934,44 +975,44 @@ async function handleMessage(
       }
     }
 
-    // Popup: query current task
+    // Popup: 查询当前任务
     case 'GET_CURRENT_TASK': {
       const store = await chrome.storage.local.get('current_task')
       return { success: true, data: store.current_task || null }
     }
 
-    // Popup: query task history
+    // Popup: 查询任务历史
     case 'GET_TASK_HISTORY': {
       const store = await chrome.storage.local.get('task_history')
       return { success: true, data: store.task_history || [] }
     }
 
-    // Popup: manual old node ID recovery
+    // Popup: 手动输入旧节点 ID 恢复
     case 'RECOVER_NODE': {
       const { oldNodeCode } = message.payload || {} as { oldNodeCode?: string }
-      if (!oldNodeCode) return { success: false, error: 'Please enter a node ID' }
+      if (!oldNodeCode) return { success: false, error: '请输入节点ID' }
       try {
-        // Check if this nodeCode exists on server
+        // 查服务端这个 nodeCode 是否存在
         const res = await fetch(`${XSOCIAL_API}/api/market/manager/extensions/status?nodeCode=${oldNodeCode}`)
         const data = await res.json()
-        if (!data.bound) return { success: false, error: `Node ${oldNodeCode} does not exist or is not bound` }
-        // Set is_bound + nodeCode immediately (prevent popup from seeing unbound state)
+        if (!data.bound) return { success: false, error: `节点 ${oldNodeCode} 不存在或未绑定` }
+        // ★ 立即设置 is_bound + nodeCode（防止 popup 判定为未绑定）
         await chrome.storage.local.set({
           recover_node_code: oldNodeCode,
           node_code: oldNodeCode.toUpperCase(),
           is_bound: true,
         })
         await saveToSync({ node_code: oldNodeCode.toUpperCase(), is_bound: true })
-        // Disconnect and reconnect, WS auth will include recoverNodeCode
+        // 断开重连, ws auth 时会带上 recoverNodeCode
         disconnectWS()
         setTimeout(connectWS, 500)
         return { success: true }
       } catch {
-        return { success: false, error: 'Network error' }
+        return { success: false, error: '网络错误' }
       }
     }
 
-    // Popup: query KPI
+    // Popup: 查询 KPI
     case 'GET_KPI': {
       const store = await chrome.storage.local.get('daily_kpi')
       return { success: true, data: store.daily_kpi || {} }
@@ -988,26 +1029,481 @@ async function handleMessage(
       return { success: true }
     }
 
+    // ===== 运营工具 =====
+
+    // ===== 关注自动化 =====
+
+    case 'FOLLOW_AUTO_GET_STATE': {
+      return { success: true, data: { state: getFollowAutoState(), config: getFollowAutoConfig() } }
+    }
+
+    case 'FOLLOW_AUTO_START': {
+      const { config: startConfig } = message.payload || {}
+      await startFollowAutomation(startConfig)
+      return { success: true, data: getFollowAutoState() }
+    }
+
+    case 'FOLLOW_AUTO_PAUSE': {
+      pauseFollowAutomation()
+      return { success: true, data: getFollowAutoState() }
+    }
+
+    case 'FOLLOW_AUTO_UPDATE_CONFIG': {
+      updateFollowAutoConfig(message.payload || {})
+      return { success: true, data: getFollowAutoConfig() }
+    }
+
+    // ===== 点赞伴随开关 =====
+
+    case 'LIKE_AUTO_GET_STATE': {
+      return { success: true, data: { state: getLikeAutoState(), config: getLikeAutoConfig() } }
+    }
+
+    case 'LIKE_AUTO_TOGGLE': {
+      const { enabled } = message.payload || {}
+      await toggleLikeAuto(!!enabled)
+      return { success: true, data: getLikeAutoState() }
+    }
+
+    case 'LIKE_AUTO_UPDATE_CONFIG': {
+      await setLikeAutoConfig(message.payload || {})
+      return { success: true, data: { state: getLikeAutoState(), config: getLikeAutoConfig() } }
+    }
+
+    // ===== AI 模型管理 =====
+
+    case 'MODEL_GET_STATE': {
+      return { success: true, data: { state: getModelState(), presets: getPresetModels() } }
+    }
+
+    case 'MODEL_SAVE_KEY': {
+      const { modelId: saveId, apiKey: saveKey } = message.payload || {}
+      if (!saveId || !saveKey) return { success: false, error: '缺少参数' }
+      try {
+        await saveUserModel(saveId, saveKey.trim())
+        return { success: true, data: getModelState() }
+      } catch (err: any) {
+        return { success: false, error: err.message }
+      }
+    }
+
+    case 'MODEL_REMOVE': {
+      const { modelId: removeId } = message.payload || {}
+      if (!removeId) return { success: false, error: '缺少 modelId' }
+      await removeUserModel(removeId)
+      return { success: true, data: getModelState() }
+    }
+
+    case 'MODEL_SET_ACTIVE': {
+      const { modelId: activateId } = message.payload || {}
+      try {
+        await setActiveModel(activateId || null)
+        return { success: true, data: getModelState() }
+      } catch (err: any) {
+        return { success: false, error: err.message }
+      }
+    }
+
+    case 'MODEL_TEST': {
+      const { modelId: testId } = message.payload || {}
+      if (!testId) return { success: false, error: '缺少 modelId' }
+      const testResult = await testModel(testId)
+      return { success: true, data: { ...testResult, state: getModelState() } }
+    }
+
+    // ===== 运营工具 (手动) =====
+
+    // 工具: 关注用户 (通过 screen_name)
+    case 'TOOL_FOLLOW': {
+      const { screenName: followTarget } = message.payload || {}
+      if (!followTarget) return { success: false, error: '请输入用户名' }
+
+      const cookies = await getXCookies()
+      if (!cookies) return { success: false, error: '未登录 X，请先在浏览器打开 x.com' }
+
+      // 解析 screen_name → userId
+      const targetUser = await getUserByScreenName(cookies, followTarget.replace(/^@/, ''))
+      if (!targetUser) return { success: false, error: `找不到用户 @${followTarget}` }
+
+      const result = await followUser(cookies, targetUser.id)
+      if (result.success) {
+        await incrementKpi('follows')
+      }
+      return { success: result.success, data: targetUser, error: result.error }
+    }
+
+    // 工具: 点赞推文
+    case 'TOOL_LIKE': {
+      const { tweetUrl } = message.payload || {}
+      if (!tweetUrl) return { success: false, error: '请输入推文链接' }
+
+      // 从 URL 提取 tweet ID
+      const tweetIdMatch = tweetUrl.match(/status\/(\d+)/)
+      if (!tweetIdMatch) return { success: false, error: '无效的推文链接，需包含 /status/数字' }
+      const extractedTweetId = tweetIdMatch[1]
+
+      const cookies = await getXCookies()
+      if (!cookies) return { success: false, error: '未登录 X' }
+
+      const likeResult = await likeTweet(cookies, extractedTweetId)
+      if (likeResult.success) {
+        await incrementKpi('likes')
+      }
+      return { success: likeResult.success, error: likeResult.success ? undefined : '点赞失败' }
+    }
+
+    // 工具: 互关检查 — 查询状态 (冷却/历史/反复取关者)
+    case 'TOOL_MUTUAL_STATUS': {
+      const store = await chrome.storage.local.get(STORAGE_KEYS.xsocialToken)
+      const token = store[STORAGE_KEYS.xsocialToken]
+      if (!token) return { success: false, error: '未登录 xSocial' }
+
+      try {
+        const res = await fetch(`${XSOCIAL_API}/api/market/follow-pool/extension/mutual-check?action=status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = await res.json()
+        return { success: res.ok, data, error: data.error }
+      } catch (err: any) {
+        return { success: false, error: err.message }
+      }
+    }
+
+    // 工具: 互关检查 — 执行扫描 + 入库
+    case 'TOOL_MUTUAL_CHECK': {
+      const cookies = await getXCookies()
+      if (!cookies) return { success: false, error: '未登录 X' }
+
+      const store = await chrome.storage.local.get([STORAGE_KEYS.xsocialToken, STORAGE_KEYS.xUserInfo])
+      const token = store[STORAGE_KEYS.xsocialToken]
+      const xUser = store[STORAGE_KEYS.xUserInfo]
+
+      // 先检查冷却
+      if (token) {
+        try {
+          const statusRes = await fetch(`${XSOCIAL_API}/api/market/follow-pool/extension/mutual-check?action=status`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const statusData = await statusRes.json()
+          if (!statusData.canScan) {
+            return {
+              success: false,
+              error: `扫描冷却中，下次可扫描: ${new Date(statusData.cooldownUntil).toLocaleDateString('zh-CN')}`,
+              data: { cooldown: true, cooldownUntil: statusData.cooldownUntil },
+            }
+          }
+        } catch { /* 查询失败不阻塞扫描 */ }
+      }
+
+      const startTime = Date.now()
+      try {
+        const followingIds = await getFollowingIds(cookies)
+        const followerIds = await getFollowerIds(cookies)
+
+        const followerSet = new Set(followerIds)
+        const nonFollowerIds = followingIds.filter(id => !followerSet.has(id))
+
+        const result = {
+          totalFollowing: followingIds.length,
+          totalFollowers: followerIds.length,
+          nonFollowers: nonFollowerIds.map(id => ({ userId: id })),
+          mutualCount: followingIds.length - nonFollowerIds.length,
+          scanTime: Date.now() - startTime,
+        }
+
+        // 缓存到本地 storage
+        await chrome.storage.local.set({ mutual_check_result: result })
+        await incrementKpi('followChecks')
+
+        // 异步入库 (不阻塞返回)
+        if (token) {
+          fetch(`${XSOCIAL_API}/api/market/follow-pool/extension/mutual-check`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              xScreenName: xUser?.screenName || '',
+              followingIds,
+              followerIds,
+              scanDurationMs: result.scanTime,
+            }),
+          }).catch(() => { /* 入库失败不影响 */ })
+        }
+
+        return { success: true, data: result }
+      } catch (err: any) {
+        return { success: false, error: err.message || '扫描失败' }
+      }
+    }
+
+    // 工具: 获取缓存的互关检查结果
+    case 'TOOL_GET_MUTUAL_RESULT': {
+      const cached = await chrome.storage.local.get('mutual_check_result')
+      return { success: true, data: cached.mutual_check_result || null }
+    }
+
+    // 工具: 启动渐进取关计划
+    case 'TOOL_START_UNFOLLOW_PLAN': {
+      const { nonFollowers: planTargets, config: planConfig } = message.payload || {}
+      if (!planTargets?.length) return { success: false, error: '无取关目标' }
+
+      // 将 hourlyRate/totalDays 转换为取关调度器的配置
+      const hourlyRate = planConfig?.hourlyRate || 15
+      const activeHours = (planConfig?.activeHoursEnd || 23) - (planConfig?.activeHoursStart || 8)
+      const dailyLimit = hourlyRate * activeHours
+
+      // 计算每次取关之间的间隔 (ms)
+      const intervalSec = Math.max(30, Math.floor(3600 / hourlyRate))
+      const unfollowConfig = {
+        delayMin: intervalSec * 1000 * 0.7,
+        delayMax: intervalSec * 1000 * 1.3,
+        hourlyLimit: hourlyRate,
+        dailyLimit,
+      }
+
+      const store = await chrome.storage.local.get(STORAGE_KEYS.xsocialToken)
+      const token = store[STORAGE_KEYS.xsocialToken] || ''
+
+      const taskId = `unfollow-plan-${Date.now()}`
+      try {
+        // 异步启动，不阻塞响应
+        startApiUnfollow(taskId, planTargets, unfollowConfig, 0, token)
+        return { success: true, data: { taskId, totalTargets: planTargets.length, dailyLimit, hourlyRate } }
+      } catch (err: any) {
+        return { success: false, error: err.message }
+      }
+    }
+
+    // 工具: 暂停取关计划
+    case 'TOOL_PAUSE_UNFOLLOW': {
+      pauseUnfollow()
+      return { success: true }
+    }
+
+    // 工具: 获取取关计划进度
+    case 'TOOL_GET_UNFOLLOW_PROGRESS': {
+      const unfollowState = getUnfollowStatus()
+      return { success: true, data: unfollowState }
+    }
+
+    // 工具: 查询润色剩余次数
+    case 'TOOL_POST_STATUS': {
+      const store = await chrome.storage.local.get(STORAGE_KEYS.xsocialToken)
+      const token = store[STORAGE_KEYS.xsocialToken]
+      if (!token) return { success: false, error: '未登录 xSocial' }
+      try {
+        const res = await fetch(`${XSOCIAL_API}/api/market/follow-pool/extension/ai-post`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        return { success: res.ok, data: await res.json() }
+      } catch (err: any) {
+        return { success: false, error: err.message }
+      }
+    }
+
+    // 工具: AI 润色 (自有模型直接调用, 平台模型走服务端)
+    case 'TOOL_AI_POLISH': {
+      const { text, targetLength = 280, style = 'casual', language = 'zh' } = message.payload || {}
+      if (!text || text.trim().length < 5) return { success: false, error: '输入内容不能少于5个字' }
+
+      const styleMap: Record<string, string> = {
+        casual: '随意自然', professional: '专业严谨', humorous: '幽默风趣', provocative: '犀利直接',
+      }
+      const langDesc = language === 'en' ? '英文' : '中文'
+
+      // 如果有激活的自有模型 → 直接调用, 不消耗平台次数
+      if (hasActiveUserModel()) {
+        try {
+          const prompt = `你是社交媒体文案润色专家。润色以下内容为约${targetLength}字的${langDesc}推文，风格${styleMap[style] || '随意自然'}。保留核心观点，去口头禅，不加hashtag和表情，直接输出润色内容。\n\n原文:\n${text.trim()}`
+          const polished = await callUserModel(prompt, { maxTokens: Math.max(800, targetLength * 2) })
+          const cleaned = polished.replace(/^["「『]|["」』]$/g, '').replace(/^(润色[后]?[：:]\s*)/i, '').trim()
+          return {
+            success: true,
+            data: {
+              text: cleaned, originalLength: text.trim().length, polishedLength: cleaned.length,
+              source: 'user_model', remaining: null, dailyLimit: null,
+            },
+          }
+        } catch (err: any) {
+          // 自有模型报错 → 明确提示是用户模型问题
+          return {
+            success: false,
+            error: `你配置的 AI 模型出错: ${err.message}`,
+            data: { source: 'user_model', modelError: true },
+          }
+        }
+      }
+
+      // 平台模型 → 走服务端 (有次数限制)
+      const store = await chrome.storage.local.get(STORAGE_KEYS.xsocialToken)
+      const token = store[STORAGE_KEYS.xsocialToken]
+      if (!token) return { success: false, error: '未登录 xSocial' }
+
+      try {
+        const res = await fetch(`${XSOCIAL_API}/api/market/follow-pool/extension/ai-post`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ text, targetLength, style, language }),
+        })
+        const data = await res.json()
+        if (!res.ok) return { success: false, error: data.error || 'AI 润色失败', data }
+        return { success: true, data: { ...data, source: 'platform' } }
+      } catch (err: any) {
+        return { success: false, error: err.message || 'AI 润色失败' }
+      }
+    }
+
+    // 工具: 直接发帖 (不经过AI, 不消耗次数)
+    case 'TOOL_DIRECT_POST': {
+      const { text: postText } = message.payload || {}
+      if (!postText?.trim()) return { success: false, error: '帖子内容不能为空' }
+
+      const cookies = await getXCookies()
+      if (!cookies) return { success: false, error: '未登录 X' }
+
+      const tweetResult = await createTweet(cookies, postText.trim())
+      if (tweetResult.success) {
+        await incrementKpi('posts')
+      }
+      return {
+        success: tweetResult.success,
+        data: { tweetId: tweetResult.tweetId },
+        error: tweetResult.error,
+      }
+    }
+
     default:
       return { success: false, error: `Unknown message type: ${message.type}` }
   }
 }
 
-// ===== Sidebar — Click icon to open Side Panel =====
+/** KPI 计数递增 */
+async function incrementKpi(field: string): Promise<void> {
+  try {
+    const today = new Date().toISOString().slice(0, 10)
+    const store = await chrome.storage.local.get('daily_kpi')
+    const kpi = store.daily_kpi || {}
+    // 日期切换时重置
+    if (kpi.date !== today) {
+      Object.keys(kpi).forEach(k => { if (k !== 'date') kpi[k] = 0 })
+      kpi.date = today
+    }
+    kpi[field] = (kpi[field] || 0) + 1
+    await chrome.storage.local.set({ daily_kpi: kpi })
+  } catch { /* ignore */ }
+}
+
+// ===== 工具箱: 平台指令处理 =====
+
+async function handleToolCommand(tool: string, action: string, config?: any): Promise<void> {
+  switch (tool) {
+    case 'follow':
+      if (config) updateFollowAutoConfig(config)
+      if (action === 'start') startFollowAutomation(config)
+      if (action === 'pause') pauseFollowAutomation()
+      break
+    case 'like':
+      if (action === 'toggle' && config) toggleLikeAuto(config.enabled)
+      if (action === 'sync' && config) setLikeAutoConfig(config)
+      break
+    case 'mutual-check':
+      if (action === 'scan') {
+        // 触发互关扫描 (复用已有的 TOOL_MUTUAL_CHECK 逻辑)
+        const cookies = await getXCookies()
+        if (cookies) {
+          const followingIds = await getFollowingIds(cookies)
+          const followerIds = await getFollowerIds(cookies)
+          const followerSet = new Set(followerIds)
+          const nonFollowerIds = followingIds.filter(id => !followerSet.has(id))
+          await chrome.storage.local.set({
+            mutual_check_result: {
+              totalFollowing: followingIds.length,
+              totalFollowers: followerIds.length,
+              nonFollowers: nonFollowerIds.map(id => ({ userId: id })),
+              mutualCount: followingIds.length - nonFollowerIds.length,
+              scanTime: 0,
+            },
+          })
+          // 入库
+          const store = await chrome.storage.local.get([STORAGE_KEYS.xsocialToken, STORAGE_KEYS.xUserInfo])
+          if (store[STORAGE_KEYS.xsocialToken]) {
+            fetch(`${XSOCIAL_API}/api/market/follow-pool/extension/mutual-check`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${store[STORAGE_KEYS.xsocialToken]}` },
+              body: JSON.stringify({ xScreenName: store[STORAGE_KEYS.xUserInfo]?.screenName || '', followingIds, followerIds, scanDurationMs: 0 }),
+            }).catch(() => {})
+          }
+        }
+      }
+      if (action === 'start-unfollow' && config) {
+        const cachedResult = await chrome.storage.local.get('mutual_check_result')
+        const nonFollowers = cachedResult.mutual_check_result?.nonFollowers || []
+        if (nonFollowers.length > 0) {
+          const hourlyRate = config.hourlyRate || 15
+          const activeHours = (config.activeHoursEnd || 23) - (config.activeHoursStart || 8)
+          const intervalSec = Math.max(30, Math.floor(3600 / hourlyRate))
+          const store = await chrome.storage.local.get(STORAGE_KEYS.xsocialToken)
+          startApiUnfollow(`unfollow-plan-${Date.now()}`, nonFollowers,
+            { delayMin: intervalSec * 700, delayMax: intervalSec * 1300, hourlyLimit: hourlyRate, dailyLimit: hourlyRate * activeHours },
+            0, store[STORAGE_KEYS.xsocialToken] || '')
+        }
+      }
+      if (action === 'pause-unfollow') pauseUnfollow()
+      break
+    case 'model':
+      if (action === 'sync' && config) {
+        // 同步模型配置到本地
+        if (config.activeModelId !== undefined) setActiveModel(config.activeModelId)
+        if (config.userModels) {
+          for (const m of config.userModels) {
+            if (m.modelId && m.apiKey) saveUserModel(m.modelId, m.apiKey)
+          }
+        }
+      }
+      break
+  }
+}
+
+async function applyToolConfig(fullConfig: any): Promise<void> {
+  if (!fullConfig) return
+  // 保存 configVersion
+  await chrome.storage.local.set({ toolbox_config_version: fullConfig.configVersion || 0 })
+
+  // 应用各工具配置
+  if (fullConfig.follow) updateFollowAutoConfig(fullConfig.follow)
+  if (fullConfig.like) setLikeAutoConfig(fullConfig.like)
+  if (fullConfig.model) {
+    if (fullConfig.model.activeModelId !== undefined) setActiveModel(fullConfig.model.activeModelId)
+    if (fullConfig.model.userModels) {
+      for (const m of fullConfig.model.userModels) {
+        if (m.modelId && m.apiKey) saveUserModel(m.modelId, m.apiKey)
+      }
+    }
+  }
+
+  logger.info(`[SW] 工具箱配置已同步 v${fullConfig.configVersion}`)
+}
+
+// ===== 侧边栏 — 点击图标打开 Side Panel =====
 
 chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true })
-  .catch(() => { /* Older Chrome versions don't support this */ })
+  .catch(() => { /* 旧版 Chrome 不支持 */ })
 
-// ===== Lifecycle Events =====
+// ===== 生命周期事件 =====
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
     logger.info('[SW] Extension installed — restoring from sync...')
     await restoreFromSync()
-    // After reinstall: clear bound state, force login -> node selection flow
-    // Token kept in sync (not deleted), but is_bound=false prevents WS from sending token
+    // 重装后: 清除绑定状态，强制走登录→节点选择流程
+    // token 保留在 sync 中（不删），但 is_bound=false 使得 WS 不发送 token
     await chrome.storage.local.set({ is_bound: false, bound_user_id: null })
-    logger.info('[SW] Reinstall: bound state cleared, login and node selection required')
+    logger.info('[SW] 重装: 已清除绑定状态，需要重新登录选择节点')
   } else if (details.reason === 'update') {
     logger.info(`[SW] Extension updated to v${chrome.runtime.getManifest().version}`)
   }
@@ -1017,16 +1513,20 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 chrome.runtime.onStartup.addListener(async () => {
   logger.info('[SW] Browser started')
   await restoreFromSync()
+  await restoreFollowState()
+  await restoreLikeState()
+  await restoreModelState()
+  fetchDynamicConfig() // 不 await, 不阻塞启动
   connectWS()
 })
 
-// ===== Keepalive — Prevent MV3 service worker from sleeping =====
-// MV3 service worker sleeps after 30s of inactivity, killing WebSocket
-// Use chrome.alarms every 25s to keep alive
+// ===== Keepalive — 防止 MV3 service worker 休眠 =====
+// MV3 service worker 30秒无活动就休眠，杀死 WebSocket
+// 用 chrome.alarms 每 25 秒触发一次保活
 chrome.alarms.create('keepalive', { periodInMinutes: 0.4 })
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'keepalive') {
-    // Check WS connection, reconnect if disconnected
+    // 检查 WS 连接状态，断了就重连
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       logger.warn('[Keepalive] WS disconnected, reconnecting...')
       connectWS()
@@ -1034,25 +1534,25 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 })
 
-// SPA navigation detection
+// SPA 导航检测
 chrome.webNavigation?.onHistoryStateUpdated?.addListener((details) => {
   if (details.url.includes('x.com') || details.url.includes('twitter.com')) {
     logger.debug('[SW] SPA navigation:', details.url)
   }
 })
 
-// ===== Task History Management =====
+// ===== 任务历史管理 =====
 
 async function moveTaskToHistory(status: 'completed' | 'aborted') {
   const store = await chrome.storage.local.get(['current_task', 'task_history', 'task_summary'])
   const current = store.current_task
   if (!current) {
-    logger.warn('[SW] moveTaskToHistory: current_task is empty, cannot move to history')
+    logger.warn('[SW] moveTaskToHistory: current_task 为空，无法移入历史')
     return
   }
   logger.info(`[SW] moveTaskToHistory: ${current.taskId}, steps=${current.steps?.length}, summary=${store.task_summary ? 'yes' : 'no'}`)
 
-  // Mark all steps with final status
+  // 标记所有步骤最终状态
   if (current.steps) {
     for (const step of current.steps) {
       if (step.status === 'running') step.status = status === 'completed' ? 'completed' : 'failed'
@@ -1060,7 +1560,7 @@ async function moveTaskToHistory(status: 'completed' | 'aborted') {
     }
   }
 
-  // Attach AI summary to task record
+  // 把 AI 汇总附加到任务记录
   const summary = store.task_summary || null
   const completedTask = { ...current, status, completedAt: Date.now(), summary }
 
@@ -1068,14 +1568,14 @@ async function moveTaskToHistory(status: 'completed' | 'aborted') {
   history.unshift(completedTask)
   if (history.length > 50) history.length = 50
 
-  // Keep current_task for 10s so popup can see completed state, then auto-clear
+  // 保留 current_task 10 秒让 popup 看到完成态，然后自动清除
   await chrome.storage.local.set({
     current_task: completedTask,
     task_history: history,
   })
   await chrome.storage.local.remove('task_summary')
 
-  // Auto-clear current_task after 10s (let history page take over)
+  // 10 秒后自动清除 current_task（让历史页接管）
   setTimeout(async () => {
     await chrome.storage.local.remove('current_task')
   }, 10_000)

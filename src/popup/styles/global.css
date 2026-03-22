@@ -68,7 +68,7 @@ body {
   border-radius: 2px;
 }
 
-/* ===== Breathing Light — Online (green pulsing indicator) ===== */
+/* ===== Breathing Light — Online (绿色呼吸灯，明显的脉动) ===== */
 @keyframes breathing-green {
   0%, 100% {
     box-shadow: 0 0 3px 1px rgba(34, 197, 94, 0.3);
@@ -83,7 +83,7 @@ body {
   animation: breathing-green 2s ease-in-out infinite;
 }
 
-/* ===== Breathing Light — Offline (dim red) ===== */
+/* ===== Breathing Light — Offline (红色微弱) ===== */
 @keyframes breathing-red {
   0%, 100% {
     box-shadow: 0 0 2px 1px rgba(239, 68, 68, 0.2);

@@ -30,7 +30,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  // ===== Copy device code (no selection state, show tooltip) =====
+  // ===== 复制识别码（无选中态，弹出提示） =====
   const handleCopyCode = () => {
     if (!nodeCode) return
     navigator.clipboard.writeText(nodeCode)
@@ -38,10 +38,10 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
     setTimeout(() => setCopied(false), 1500)
   }
 
-  // ===== Email/password login (xSocial -> Microcosm auth chain) =====
+  // ===== 邮箱密码登录 (走 xSocial → Microcosm 认证链) =====
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      setError('Please enter email and password')
+      setError('请输入邮箱和密码')
       return
     }
     setLoading(true)
@@ -62,16 +62,16 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
           setViewState('select_node')
         }
       } else {
-        setError(res?.error || 'Login failed')
+        setError(res?.error || '登录失败')
       }
     } catch {
-      setError('Network error, please try again')
+      setError('网络错误，请重试')
     } finally {
       setLoading(false)
     }
   }
 
-  // ===== Select node to restore =====
+  // ===== 选择节点恢复 =====
   const handleSelectNode = async (node: NodeInfo) => {
     setViewState('restoring')
     setError('')
@@ -83,16 +83,16 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
       if (res?.success) {
         setViewState('success')
       } else {
-        setError(res?.error || 'Restore failed')
+        setError(res?.error || '恢复失败')
         setViewState('select_node')
       }
     } catch {
-      setError('Operation failed')
+      setError('操作失败')
       setViewState('select_node')
     }
   }
 
-  // ===== Manual entry of old node ID =====
+  // ===== 手动输入旧节点 ID =====
   const handleManualRecover = async () => {
     const code = oldCode.trim().toUpperCase()
     if (!code) return
@@ -106,16 +106,16 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
       if (res?.success) {
         setViewState('success')
       } else {
-        setError(res?.error || 'Restore failed')
+        setError(res?.error || '恢复失败')
       }
     } catch {
-      setError('Operation failed')
+      setError('操作失败')
     } finally {
       setLoading(false)
     }
   }
 
-  // ===== Success: refresh after 2 seconds =====
+  // ===== 成功: 2秒后刷新 =====
   if (viewState === 'success') {
     setTimeout(() => window.location.reload(), 2000)
     return (
@@ -131,13 +131,13 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
-        <p style={{ fontSize: 15, color: '#22c55e', fontWeight: 600 }}>Restored Successfully</p>
-        <p style={{ fontSize: 12, color: '#999', marginTop: 6 }}>Reconnecting...</p>
+        <p style={{ fontSize: 15, color: '#22c55e', fontWeight: 600 }}>恢复成功</p>
+        <p style={{ fontSize: 12, color: '#999', marginTop: 6 }}>正在重新连接...</p>
       </div>
     )
   }
 
-  // ===== Logging in / Restoring =====
+  // ===== 登录中 / 恢复中 =====
   if (viewState === 'logging_in' || viewState === 'restoring') {
     return (
       <div style={{
@@ -149,21 +149,21 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
           borderTopColor: '#ff5722', borderRadius: '50%',
         }} />
         <p style={{ fontSize: 14, color: '#555', fontWeight: 500 }}>
-          {viewState === 'restoring' ? 'Restoring node...' : 'Logging in...'}
+          {viewState === 'restoring' ? '正在恢复节点...' : '正在登录...'}
         </p>
       </div>
     )
   }
 
-  // ===== Node selection =====
+  // ===== 节点选择 =====
   if (viewState === 'select_node') {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px', overflowY: 'auto' }}>
         <p style={{ fontSize: 14, fontWeight: 600, color: '#1a1a2e', marginBottom: 4 }}>
-          Select a Node to Restore
+          选择要恢复的节点
         </p>
         <p style={{ fontSize: 12, color: '#888', marginBottom: 16 }}>
-          Login successful. Please select a node to connect to this browser
+          登录成功，请选择一个节点连接到此浏览器
         </p>
 
         {error && (
@@ -234,13 +234,13 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
             fontSize: 12, color: '#888', cursor: 'pointer', fontFamily: 'inherit', width: '100%',
           }}
         >
-          Back
+          返回
         </button>
       </div>
     )
   }
 
-  // ===== Initial state (before login) =====
+  // ===== 初始状态（登录前）=====
   return (
     <div style={{
       flex: 1, display: 'flex', flexDirection: 'column',
@@ -249,14 +249,14 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
       overflowY: 'auto',
     }}>
 
-      {/* Error message */}
+      {/* 错误提示 */}
       {error && (
         <p style={{ fontSize: 12, color: '#ef4444', marginBottom: 12, padding: '8px 12px', background: '#fef2f2', borderRadius: 6, width: '100%' }}>
           {error}
         </p>
       )}
 
-      {/* ===== Login form ===== */}
+      {/* ===== 登录表单 ===== */}
       {showLogin && !showManual && (
         <div style={{
           width: '100%', padding: '16px',
@@ -264,15 +264,15 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
           border: '1px solid #e0e0e5', textAlign: 'left', marginBottom: 16,
         }}>
           <p style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e', marginBottom: 4 }}>
-            Sign in to xSocial
+            登录 xSocial
           </p>
           <p style={{ fontSize: 11, color: '#999', marginBottom: 12 }}>
-            Authenticate via Microcosm
+            通过 Microcosm 认证登录
           </p>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
+            placeholder="邮箱"
             type="email"
             style={{
               width: '100%', padding: '10px 12px', borderRadius: 8,
@@ -285,7 +285,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
           <input
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
+            placeholder="密码"
             type="password"
             onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             style={{
@@ -307,7 +307,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
                 cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
               }}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? '登录中...' : '登录'}
             </button>
             <button
               onClick={() => { setShowLogin(false); setError('') }}
@@ -317,13 +317,13 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
                 fontSize: 13, color: '#888', cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
-              Cancel
+              取消
             </button>
           </div>
         </div>
       )}
 
-      {/* ===== Manual old node ID entry ===== */}
+      {/* ===== 手动输入旧节点 ID ===== */}
       {showManual && !showLogin && (
         <div style={{
           width: '100%', padding: '16px',
@@ -331,15 +331,15 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
           border: '1px solid #e0e0e5', textAlign: 'left', marginBottom: 16,
         }}>
           <p style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e', marginBottom: 12 }}>
-            Enter Old Node ID
+            输入旧节点 ID
           </p>
           <p style={{ fontSize: 11, color: '#999', marginBottom: 12 }}>
-            Enter your previous node code to automatically restore all settings
+            输入重装前的节点识别码，自动恢复该节点的所有配置
           </p>
           <input
             value={oldCode}
             onChange={(e) => setOldCode(e.target.value.toUpperCase())}
-            placeholder="e.g. N-010"
+            placeholder="如 N-010"
             onKeyDown={(e) => e.key === 'Enter' && handleManualRecover()}
             style={{
               width: '100%', padding: '10px 12px', borderRadius: 8,
@@ -358,7 +358,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
                 fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
-              {loading ? 'Restoring...' : 'Restore Node'}
+              {loading ? '恢复中...' : '恢复节点'}
             </button>
             <button
               onClick={() => { setShowManual(false); setError('') }}
@@ -368,13 +368,13 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
                 fontSize: 13, color: '#888', cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
-              Cancel
+              取消
             </button>
           </div>
         </div>
       )}
 
-      {/* ===== Main button area (before login) ===== */}
+      {/* ===== 主按钮区域（登录前） ===== */}
       {!showLogin && !showManual && (
         <>
           {/* Logo */}
@@ -391,10 +391,10 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
             xSocial Agent
           </p>
           <p style={{ fontSize: 12, color: '#888', marginBottom: 24, lineHeight: 1.5 }}>
-            AI-Powered Social Media Automation
+            AI 驱动的社交媒体自动化
           </p>
 
-          {/* Sign In + Sign Up buttons */}
+          {/* 登录 + 注册 两个按钮 */}
           <div style={{ display: 'flex', gap: 10, width: '100%', marginBottom: 10 }}>
             <button
               onClick={() => { setShowLogin(true); setError('') }}
@@ -406,7 +406,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
                 boxShadow: '0 2px 8px rgba(255,87,34,0.25)',
               }}
             >
-              Sign In
+              登录
             </button>
             <button
               onClick={() => { window.open('https://xsocial.cc/register', '_blank') }}
@@ -417,25 +417,25 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
                 cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
-              Sign Up
+              注册
             </button>
           </div>
 
           <p style={{ fontSize: 11, color: '#aaa', marginBottom: 20, lineHeight: 1.5 }}>
-            Already have an account? Sign in to restore your nodes and settings
+            已有账号？登录后可自动恢复节点和配置
           </p>
 
-          {/* Divider */}
+          {/* 分隔线 */}
           <div style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 12,
             marginBottom: 16, color: '#ccc', fontSize: 11,
           }}>
             <div style={{ flex: 1, height: 1, background: '#e0e0e5' }} />
-            <span>or</span>
+            <span>或</span>
             <div style={{ flex: 1, height: 1, background: '#e0e0e5' }} />
           </div>
 
-          {/* Manual old ID entry */}
+          {/* 手动输入旧 ID */}
           <button
             onClick={() => { setShowManual(true); setError('') }}
             style={{
@@ -444,10 +444,10 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
               cursor: 'pointer', fontSize: 13, color: '#555', fontFamily: 'inherit',
             }}
           >
-            Restore with Node ID
+            输入节点 ID 恢复
           </button>
 
-          {/* Device code (small text at bottom, subtle) */}
+          {/* 识别码（小字显示在底部，不突出） */}
           {nodeCode && (
             <div style={{ marginTop: 24 }}>
               <div
@@ -467,12 +467,12 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
                     padding: '3px 10px', borderRadius: 4, background: '#333', color: '#fff',
                     fontSize: 11, whiteSpace: 'nowrap',
                   }}>
-                    Copied
+                    已复制
                   </span>
                 )}
               </div>
               <p style={{ fontSize: 10, color: '#bbb', marginTop: 4 }}>
-                Enter this code at xsocial.cc for first-time binding
+                首次绑定可在 xsocial.cc 输入此识别码
               </p>
             </div>
           )}

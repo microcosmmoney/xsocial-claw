@@ -7,6 +7,7 @@ import CurrentTaskPage from './pages/CurrentTaskPage'
 import TodayTasksPage from './pages/TodayTasksPage'
 import HistoryPage from './pages/HistoryPage'
 import KpiPage from './pages/KpiPage'
+import ToolsPage from './pages/ToolsPage'
 import { useNodeStatus } from './hooks/useNodeStatus'
 import { useCurrentTask } from './hooks/useCurrentTask'
 import { useTaskHistory } from './hooks/useTaskHistory'
@@ -73,6 +74,7 @@ export default function App() {
             {activeTab === 'today' && <TodayTasksPage tasks={todayTasks} />}
             {activeTab === 'history' && <HistoryPage history={history} />}
             {activeTab === 'kpi' && <KpiPage kpi={kpi} />}
+            {activeTab === 'tools' && <ToolsPage />}
           </div>
 
           {/* Footer */}
@@ -81,7 +83,7 @@ export default function App() {
             display: 'flex', justifyContent: 'space-between',
             fontSize: 10, color: 'var(--text-tertiary)', background: 'var(--bg-card)',
           }}>
-            <span>xSocial Agent v2.1.0</span>
+            <span>xSocial Agent v{chrome.runtime.getManifest().version}</span>
             <span>{status?.wsConnected ? 'WS Connected' : 'WS Disconnected'}</span>
           </div>
         </>

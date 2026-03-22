@@ -26,7 +26,7 @@ function TaskCard({ task }: { task: CurrentTask }) {
       background: '#fff', borderRadius: 8, border: '1px solid #e8e8ec',
       overflow: 'hidden', marginBottom: 6,
     }}>
-      {/* Summary row (click to expand) */}
+      {/* 摘要行（点击展开） */}
       <div
         onClick={() => setExpanded(!expanded)}
         style={{
@@ -54,7 +54,7 @@ function TaskCard({ task }: { task: CurrentTask }) {
             </span>
           </div>
           <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>
-            {stepsDone}/{stepsTotal} steps · {durationSec}s
+            {stepsDone}/{stepsTotal} 步 · {durationSec}s
           </div>
         </div>
 
@@ -70,10 +70,10 @@ function TaskCard({ task }: { task: CurrentTask }) {
         </svg>
       </div>
 
-      {/* Expanded details */}
+      {/* 展开详情 */}
       {expanded && (
         <div style={{ padding: '0 12px 12px', borderTop: '1px solid #f0f0f3' }}>
-          {/* Step list */}
+          {/* 步骤列表 */}
           {task.steps && task.steps.length > 0 && (
             <div style={{ paddingTop: 8 }}>
               {task.steps.map((step, i) => (
@@ -88,7 +88,7 @@ function TaskCard({ task }: { task: CurrentTask }) {
             </div>
           )}
 
-          {/* AI Summary */}
+          {/* AI 汇总 */}
           {task.summary && (
             <div style={{
               marginTop: 8, padding: '8px 10px', borderRadius: 6,
@@ -96,7 +96,7 @@ function TaskCard({ task }: { task: CurrentTask }) {
               fontSize: 12, color: '#333', lineHeight: 1.6,
               whiteSpace: 'pre-wrap', wordBreak: 'break-word',
             }}>
-              <span style={{ fontSize: 10, fontWeight: 600, color: '#ff5722' }}>Summary</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#ff5722' }}>🤖 汇总</span>
               <div style={{ marginTop: 4 }}>{task.summary}</div>
             </div>
           )}
@@ -115,12 +115,12 @@ export default function HistoryPage({ history }: Props) {
         padding: 40, color: '#aaa',
       }}>
         <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>&#128218;</div>
-        <p style={{ fontSize: 13 }}>No history yet</p>
+        <p style={{ fontSize: 13 }}>暂无历史记录</p>
       </div>
     )
   }
 
-  // Group by date
+  // 按日期分组
   const groups: Record<string, CurrentTask[]> = {}
   for (const t of history) {
     const date = t.completedAt
@@ -140,9 +140,9 @@ export default function HistoryPage({ history }: Props) {
             fontSize: 11, color: '#888', fontWeight: 600,
             marginBottom: 6, paddingBottom: 4,
           }}>
-            {date === today ? 'Today' : date}
+            {date === today ? '今天' : date}
             <span style={{ marginLeft: 8, color: '#bbb', fontWeight: 400 }}>
-              {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
+              {tasks.length} 个任务
             </span>
           </p>
           {tasks.map((t, i) => (
