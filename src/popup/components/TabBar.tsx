@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React from 'react'
 
 export type TabId = 'current' | 'today' | 'history' | 'kpi' | 'tools'

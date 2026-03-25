@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import { useState, useEffect, useCallback } from 'react'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -15,7 +16,7 @@ export function useTheme() {
   const [mode, setMode] = useState<ThemeMode>('system')
   const [resolved, setResolved] = useState<'light' | 'dark'>('light')
 
-  // 初始化：从 storage 读取
+  
   useEffect(() => {
     chrome.storage.local.get('theme_mode').then((store) => {
       const saved = (store.theme_mode as ThemeMode) || 'system'
@@ -24,7 +25,7 @@ export function useTheme() {
     })
   }, [])
 
-  // 监听系统主题变化
+  
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const handler = () => {
@@ -36,7 +37,7 @@ export function useTheme() {
     return () => mq.removeEventListener('change', handler)
   }, [mode])
 
-  // 应用到 DOM
+  
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', resolved)
   }, [resolved])

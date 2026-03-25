@@ -1,3 +1,4 @@
+// Developed by AI Agent
 const path = require('path')
 const CopyPlugin = require('copy-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')

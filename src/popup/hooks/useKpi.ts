@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import { useState, useEffect } from 'react'
 
 export interface DailyKpi {
@@ -20,7 +21,7 @@ export function useKpi() {
       try {
         const res = await chrome.runtime.sendMessage({ type: 'GET_KPI' })
         if (res?.success && res.data) setKpi(res.data)
-      } catch { /* ignore */ }
+      } catch {  }
     }
     fetch_()
   }, [])

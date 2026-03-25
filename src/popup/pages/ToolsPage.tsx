@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React, { useState, useEffect } from 'react'
 import PostTool from '../components/tools/PostTool'
 
@@ -23,14 +24,14 @@ export default function ToolsPage() {
         if (l?.success) setLikeState(l.data)
         if (u?.success) setUnfollowState(u.data)
         if (m?.success) setModelState(m.data?.state)
-      } catch { /* ignore */ }
+      } catch {  }
     }
     fetch_()
     const timer = setInterval(fetch_, 3000)
     return () => clearInterval(timer)
   }, [])
 
-  // 润色发帖 — 唯一可交互工具
+  
   if (view === 'post') {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -44,7 +45,7 @@ export default function ToolsPage() {
     )
   }
 
-  // 状态仪表盘
+  
   const fState = followState
   const lState = likeState?.state
   const lConfig = likeState?.config
@@ -56,7 +57,7 @@ export default function ToolsPage() {
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {/* 关注自动化 */}
+        {}
         <StatusRow
           label="关注自动化"
           status={fState?.status || 'idle'}
@@ -64,14 +65,14 @@ export default function ToolsPage() {
           subDetail={fState?.currentPhase || undefined}
         />
 
-        {/* 点赞伴随 */}
+        {}
         <StatusRow
           label="点赞伴随"
           status={lConfig?.enabled ? 'on' : 'off'}
           detail={lState ? `今日 ${lState.dailyCount || 0}/${lState.dailyLimit || 50}` : '已关闭'}
         />
 
-        {/* 互关检查 */}
+        {}
         <StatusRow
           label="互关检查"
           status={unfollowState?.status === 'running' ? 'running' : 'idle'}
@@ -81,17 +82,17 @@ export default function ToolsPage() {
           }
         />
 
-        {/* AI 模型 */}
+        {}
         <StatusRow
           label="AI 模型"
           status={modelState?.activeModelId ? 'on' : 'off'}
           detail={modelState?.activeModelId || '平台模型 (每日3次)'}
         />
 
-        {/* 分隔线 */}
+        {}
         <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
-        {/* 润色发帖 — 唯一可点击进入的工具 */}
+        {}
         <button
           onClick={() => setView('post')}
           style={{
@@ -120,7 +121,7 @@ export default function ToolsPage() {
         </button>
       </div>
 
-      {/* 提示 */}
+      {}
       <div style={{
         marginTop: 12, padding: '8px 10px', borderRadius: 6,
         background: 'rgba(255,87,34,0.05)', border: '1px solid rgba(255,87,34,0.1)',
@@ -134,7 +135,7 @@ export default function ToolsPage() {
   )
 }
 
-// 状态行组件
+
 function StatusRow({ label, status, detail, subDetail }: {
   label: string; status: string; detail: string; subDetail?: string
 }) {

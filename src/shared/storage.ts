@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import { STORAGE_KEYS, type XUserBasic } from './types'
 
 export async function getStorage<T>(key: string): Promise<T | null> {

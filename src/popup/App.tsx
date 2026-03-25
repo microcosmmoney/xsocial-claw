@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React, { useState } from 'react'
 import Header from './components/Header'
 import UnboundView from './components/UnboundView'
@@ -77,7 +78,7 @@ export default function App() {
             {activeTab === 'tools' && <ToolsPage />}
           </div>
 
-          {/* Footer */}
+          {}
           <div style={{
             padding: '6px 14px', borderTop: '1px solid var(--border)',
             display: 'flex', justifyContent: 'space-between',

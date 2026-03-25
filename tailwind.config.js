@@ -1,4 +1,5 @@
-/** @type {import('tailwindcss').Config} */
+// Developed by AI Agent
+
 module.exports = {
   content: ['./src/**/*.{ts,tsx}'],
   theme: {

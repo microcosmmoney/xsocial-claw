@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React from 'react'
 import type { XUserInfo } from '../hooks/useNodeStatus'
 
@@ -14,7 +15,7 @@ function formatCount(n: number | undefined): string {
 export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
   return (
     <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
-      {/* Banner — Twitter 风格 3:1 宽高比 */}
+      {}
       <div style={{
         height: 110,
         background: xUser.profileBannerUrl
@@ -23,9 +24,9 @@ export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
         position: 'relative',
       }} />
 
-      {/* 主体内容 */}
+      {}
       <div style={{ padding: '0 16px 14px', position: 'relative' }}>
-        {/* Avatar — 压在 banner 上 */}
+        {}
         <div style={{
           marginTop: -30, marginBottom: 8,
           display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
@@ -39,7 +40,7 @@ export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
               display: 'block', objectFit: 'cover',
             }}
           />
-          {/* 节点编号徽章 */}
+          {}
           {nodeCode && (
             <div style={{
               padding: '3px 10px', borderRadius: 20,
@@ -52,7 +53,7 @@ export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
           )}
         </div>
 
-        {/* 名称 + 认证 */}
+        {}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)' }}>
             {xUser.displayName}
@@ -66,19 +67,19 @@ export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
           )}
         </div>
 
-        {/* @handle */}
+        {}
         <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 1 }}>
           @{xUser.screenName}
         </div>
 
-        {/* Bio */}
+        {}
         {xUser.bio && (
           <div style={{ fontSize: 14, color: 'var(--text-primary)', marginTop: 10, lineHeight: 1.45, wordBreak: 'break-word' }}>
             {xUser.bio}
           </div>
         )}
 
-        {/* 位置 + 加入时间 */}
+        {}
         {(xUser.location || xUser.joinedAt) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, fontSize: 13, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
             {xUser.location && (
@@ -105,7 +106,7 @@ export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
           </div>
         )}
 
-        {/* 关注 / 关注者 — Twitter 原版布局 */}
+        {}
         <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
           <span style={{ fontSize: 14 }}>
             <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{formatCount(xUser.followingCount)}</strong>
@@ -117,7 +118,7 @@ export default function XProfileCard({ xUser, nodeCode }: XProfileCardProps) {
           </span>
         </div>
 
-        {/* 推文 / 点赞 / 媒体 — 统计条 */}
+        {}
         <div style={{
           display: 'flex', gap: 0, marginTop: 12, fontSize: 12,
           borderTop: '1px solid var(--border-light)', paddingTop: 10,

@@ -1,17 +1,5 @@
-/**
- * 取关调度器 — 回关检查核心执行引擎
- *
- * 支持两种模式:
- *   方案A (api): 用 friends/ids + followers/ids 批量发现, unfollowUser API 取关
- *   方案B (page): 在"正在关注"页面滚动, 检测"关注了你"标签, 模拟真人取关
- *
- * 安全策略:
- *   - 取关间隔 30-90 秒 (高斯随机)
- *   - 每小时上限 30, 每日上限 200 (用户可调低)
- *   - 连续 3 次错误自动暂停
- *   - 遇 403 立即停止
- *   - 仅活跃时段 (8:00-23:00) 运行
- */
+// Developed by AI Agent
+
 
 import { XSOCIAL_API, UNFOLLOW_LIMITS } from '@shared/constants'
 import { STORAGE_KEYS } from '@shared/types'
@@ -20,20 +8,17 @@ import { getXCookies, getFollowingIds, getFollowerIds, unfollowUser } from './x-
 import { gaussianDelay, humanDelay, isActiveHours, sleep } from '@utils/delay'
 import { logger } from '@utils/logger'
 
-// ===== 内部状态 =====
 
 let currentTask: UnfollowTaskState | null = null
 let isRunning = false
 let stopRequested = false
 
-// ===== 公共 API =====
 
-/** 获取当前任务状态 */
 export function getUnfollowStatus(): UnfollowTaskState | null {
   return currentTask
 }
 
-/** 方案A: API 批量扫描发现非回关者 */
+
 export async function scanViaApi(taskId: string, xScreenName: string, token: string): Promise<{
   nonFollowers: NonFollowerEntry[]
   totalFollowing: number
@@ -52,7 +37,7 @@ export async function scanViaApi(taskId: string, xScreenName: string, token: str
     logger.info(`[Unfollow] 已获取 ${count} 个粉丝 ID`)
   })
 
-  // 集合对比: 关注了但没被回关
+  
   const followerSet = new Set(followerIds)
   const nonFollowerIds = followingIds.filter(id => !followerSet.has(id))
 
@@ -62,7 +47,7 @@ export async function scanViaApi(taskId: string, xScreenName: string, token: str
 
   logger.info(`[Unfollow] 扫描完成: 关注${followingIds.length}, 粉丝${followerIds.length}, 未回关${nonFollowers.length}`)
 
-  // 上报服务端
+  
   await reportScan(token, taskId, nonFollowers, followingIds.length, followerIds.length)
 
   return {
@@ -72,7 +57,7 @@ export async function scanViaApi(taskId: string, xScreenName: string, token: str
   }
 }
 
-/** 方案A: 启动/恢复 API 模式取关 */
+
 export async function startApiUnfollow(
   taskId: string,
   nonFollowers: NonFollowerEntry[],
@@ -118,14 +103,14 @@ export async function startApiUnfollow(
         break
       }
 
-      // 活跃时段检查
+      
       if (!isActiveHours()) {
         logger.info('[Unfollow] 非活跃时段, 暂停')
         currentTask.status = 'paused'
         break
       }
 
-      // 频率检查
+      
       if (currentTask.hourlyCount >= config.hourlyLimit) {
         logger.info(`[Unfollow] 达到每小时上限 ${config.hourlyLimit}`)
         currentTask.status = 'paused'
@@ -161,7 +146,7 @@ export async function startApiUnfollow(
         currentTask.lastProcessedIndex = i + 1
         logger.warn(`[Unfollow] ✗ 取关失败 ${target.userId}: ${result.error}`)
 
-        // 403 → 立即停止
+        
         if (result.error?.includes('403')) {
           logger.error('[Unfollow] 403 Forbidden — 立即停止')
           currentTask.status = 'paused'
@@ -169,22 +154,22 @@ export async function startApiUnfollow(
         }
       }
 
-      // 定期上报进度
+      
       if (pendingActions.length >= UNFOLLOW_LIMITS.progressReportInterval) {
         await reportProgress(token, taskId, currentTask, pendingActions)
         pendingActions.length = 0
       }
 
-      // 保存到 storage (恢复用)
+      
       await saveState()
 
-      // 人类延迟
+      
       if (i < nonFollowers.length - 1) {
         await humanDelay(config.delayMin, config.delayMax)
       }
     }
 
-    // 全部完成
+    
     if (currentTask.lastProcessedIndex >= nonFollowers.length) {
       currentTask.status = 'completed'
     }
@@ -192,7 +177,7 @@ export async function startApiUnfollow(
     logger.error('[Unfollow] 执行异常:', err)
     currentTask.status = 'error'
   } finally {
-    // 上报剩余进度
+    
     if (pendingActions.length > 0) {
       await reportProgress(token, taskId, currentTask, pendingActions)
     }
@@ -201,7 +186,7 @@ export async function startApiUnfollow(
   }
 }
 
-/** 暂停任务 */
+
 export function pauseUnfollow(): void {
   stopRequested = true
   if (currentTask) {
@@ -209,7 +194,7 @@ export function pauseUnfollow(): void {
   }
 }
 
-/** 恢复任务状态 (从 chrome.storage) */
+
 export async function restoreState(): Promise<UnfollowTaskState | null> {
   try {
     const result = await chrome.storage.local.get(STORAGE_KEYS.unfollowTask)
@@ -219,19 +204,18 @@ export async function restoreState(): Promise<UnfollowTaskState | null> {
       return state
     }
   } catch {
-    // ignore
+    
   }
   return null
 }
 
-// ===== 内部方法 =====
 
 async function saveState(): Promise<void> {
   if (currentTask) {
     try {
       await chrome.storage.local.set({ [STORAGE_KEYS.unfollowTask]: currentTask })
     } catch {
-      // ignore
+      
     }
   }
 }

@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import { useState, useEffect } from 'react'
 import type { CurrentTask } from './useCurrentTask'
 
@@ -9,7 +10,7 @@ export function useTaskHistory() {
       try {
         const res = await chrome.runtime.sendMessage({ type: 'GET_TASK_HISTORY' })
         if (res?.success) setHistory(res.data || [])
-      } catch { /* ignore */ }
+      } catch {  }
     }
     fetch_()
     const timer = setInterval(fetch_, 5000)

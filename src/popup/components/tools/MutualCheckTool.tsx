@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React, { useState, useEffect } from 'react'
 import type { MutualCheckResult, UnfollowPlanConfig } from '@shared/types'
 
@@ -48,10 +49,10 @@ export default function MutualCheckTool() {
     activeHoursEnd: 23,
   })
 
-  // 初始加载: 获取服务端状态 + 本地缓存
+  
   useEffect(() => {
     (async () => {
-      // 检查进行中的取关任务
+      
       const progressRes = await chrome.runtime.sendMessage({ type: 'TOOL_GET_UNFOLLOW_PROGRESS' })
       if (progressRes?.success && progressRes.data && ['running', 'paused'].includes(progressRes.data.status)) {
         setUnfollowProgress(progressRes.data)
@@ -59,13 +60,13 @@ export default function MutualCheckTool() {
         return
       }
 
-      // 从服务端获取状态
+      
       const statusRes = await chrome.runtime.sendMessage({ type: 'TOOL_MUTUAL_STATUS' })
       if (statusRes?.success && statusRes.data) {
         setStatus(statusRes.data)
       }
 
-      // 检查本地缓存结果
+      
       const cachedRes = await chrome.runtime.sendMessage({ type: 'TOOL_GET_MUTUAL_RESULT' })
       if (cachedRes?.success && cachedRes.data) {
         setScanResult(cachedRes.data)
@@ -76,7 +77,7 @@ export default function MutualCheckTool() {
     })()
   }, [])
 
-  // 取关运行中轮询
+  
   useEffect(() => {
     if (phase !== 'running') return
     const timer = setInterval(async () => {
@@ -97,7 +98,7 @@ export default function MutualCheckTool() {
       if (res?.success) {
         setScanResult(res.data)
         setPhase('result')
-        // 刷新服务端状态
+        
         const statusRes = await chrome.runtime.sendMessage({ type: 'TOOL_MUTUAL_STATUS' })
         if (statusRes?.success) setStatus(statusRes.data)
       } else {
@@ -131,7 +132,7 @@ export default function MutualCheckTool() {
     return <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>加载中...</div>
   }
 
-  // ===== 子视图: 扫描历史 =====
+  
   if (subView === 'history') {
     return (
       <div style={{ padding: '0 14px 14px' }}>
@@ -168,7 +169,7 @@ export default function MutualCheckTool() {
     )
   }
 
-  // ===== 子视图: 反复取关者 =====
+  
   if (subView === 'breakers') {
     const breakers = status?.mutualBreakers || []
     return (
@@ -225,8 +226,7 @@ export default function MutualCheckTool() {
     )
   }
 
-  // ===== 主视图 =====
-
+  
   const activeHoursPerDay = planConfig.activeHoursEnd - planConfig.activeHoursStart
   const dailyCapacity = planConfig.hourlyRate * activeHoursPerDay
   const estimatedDays = scanResult ? Math.ceil(scanResult.nonFollowers.length / dailyCapacity) : 0
@@ -237,7 +237,7 @@ export default function MutualCheckTool() {
     <div style={{ padding: '0 14px 14px' }}>
       <h3 style={headingStyle}>互关检查</h3>
 
-      {/* 快捷入口: 历史 + 反复取关者 */}
+      {}
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
         <button onClick={() => setSubView('history')} style={chipBtnStyle}>
           扫描历史 ({status?.history?.length || 0})
@@ -255,7 +255,7 @@ export default function MutualCheckTool() {
         </button>
       </div>
 
-      {/* 上次扫描摘要 */}
+      {}
       {status?.lastSnapshot && (
         <div style={{
           padding: '10px', borderRadius: 8, marginBottom: 12,
@@ -277,7 +277,7 @@ export default function MutualCheckTool() {
         </div>
       )}
 
-      {/* 扫描阶段 */}
+      {}
       {(phase === 'idle' || phase === 'scanning') && (
         <>
           {!canScan && status?.cooldownUntil && (
@@ -325,7 +325,7 @@ export default function MutualCheckTool() {
         </>
       )}
 
-      {/* 扫描结果 */}
+      {}
       {phase === 'result' && scanResult && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
@@ -398,7 +398,7 @@ export default function MutualCheckTool() {
         </>
       )}
 
-      {/* 取关进行中 */}
+      {}
       {phase === 'running' && unfollowProgress && (
         <>
           <div style={{ padding: '14px', borderRadius: 8, background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
@@ -449,7 +449,6 @@ export default function MutualCheckTool() {
   )
 }
 
-// ===== 子组件 + 样式 =====
 
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (

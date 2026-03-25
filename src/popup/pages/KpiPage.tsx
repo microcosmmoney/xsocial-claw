@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React from 'react'
 import type { DailyKpi } from '../hooks/useKpi'
 
@@ -46,7 +47,7 @@ export default function KpiPage({ kpi }: Props) {
         })}
       </div>
 
-      {/* Total */}
+      {}
       <div style={{
         marginTop: 14, padding: '12px',
         background: 'rgba(255,87,34,0.05)', borderRadius: 8,

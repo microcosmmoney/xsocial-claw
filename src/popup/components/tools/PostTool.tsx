@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React, { useState, useEffect, useRef } from 'react'
 
 type PostStyle = 'casual' | 'professional' | 'humorous' | 'provocative'
@@ -17,7 +18,7 @@ const LENGTHS: { value: TargetLength; label: string }[] = [
   { value: 1500, label: '最长 1500字' },
 ]
 
-const MAX_RECORD_SEC = 300 // 5分钟
+const MAX_RECORD_SEC = 300 
 
 export default function PostTool() {
   const [inputText, setInputText] = useState('')
@@ -29,18 +30,18 @@ export default function PostTool() {
   const [posting, setPosting] = useState(false)
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
 
-  // 润色计次
+  
   const [remaining, setRemaining] = useState<number | null>(null)
   const [dailyLimit, setDailyLimit] = useState(3)
 
-  // 语音录入
+  
   const [recording, setRecording] = useState(false)
   const [recordSec, setRecordSec] = useState(0)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // 加载润色剩余次数
+  
   useEffect(() => {
     (async () => {
       try {
@@ -49,12 +50,11 @@ export default function PostTool() {
           setRemaining(res.data.remaining)
           setDailyLimit(res.data.dailyLimit)
         }
-      } catch { /* ignore */ }
+      } catch {  }
     })()
   }, [])
 
-  // ===== 语音录入 =====
-
+  
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -70,7 +70,7 @@ export default function PostTool() {
       setRecording(true)
       setRecordSec(0)
 
-      // 倒计时
+      
       timerRef.current = setInterval(() => {
         setRecordSec(prev => {
           if (prev + 1 >= MAX_RECORD_SEC) {
@@ -98,14 +98,12 @@ export default function PostTool() {
 
   const processAudio = async () => {
     if (chunksRef.current.length === 0) return
-    // 使用 Web Speech API 进行语音转文字 (浏览器内置, 免费)
-    // 注: Chrome 扩展 popup 中 SpeechRecognition 可能不可用
-    // 回退方案: 提示用户手动输入
+    
+    
     setResult({ success: false, message: '语音录制完成。请在浏览器中使用语音输入 (Chrome 地址栏右侧麦克风图标)，或手动输入文字。' })
   }
 
-  // ===== 润色 =====
-
+  
   const handlePolish = async () => {
     if (!inputText.trim() || inputText.trim().length < 5) {
       setResult({ success: false, message: '输入内容不能少于5个字' })
@@ -137,8 +135,7 @@ export default function PostTool() {
     setPolishing(false)
   }
 
-  // ===== 发帖 =====
-
+  
   const handlePost = async (text: string) => {
     if (!text.trim()) return
     setPosting(true)
@@ -179,7 +176,7 @@ export default function PostTool() {
         </span>
       </div>
 
-      {/* 输入区 */}
+      {}
       <div style={{ position: 'relative', marginBottom: 8 }}>
         <textarea
           value={inputText}
@@ -194,7 +191,7 @@ export default function PostTool() {
             resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box',
           }}
         />
-        {/* 语音按钮 */}
+        {}
         <button
           onClick={recording ? stopRecording : startRecording}
           title={recording ? '停止录音' : '语音输入'}
@@ -211,7 +208,7 @@ export default function PostTool() {
         </button>
       </div>
 
-      {/* 录音中倒计时 */}
+      {}
       {recording && (
         <div style={{
           marginBottom: 8, padding: '8px 12px', borderRadius: 8,
@@ -228,7 +225,7 @@ export default function PostTool() {
         </div>
       )}
 
-      {/* 字数 + 风格 + 语言选择 */}
+      {}
       <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
         {LENGTHS.map((l) => (
           <button key={l.value} onClick={() => setTargetLength(l.value)} style={{
@@ -270,7 +267,7 @@ export default function PostTool() {
         </div>
       </div>
 
-      {/* 操作按钮 */}
+      {}
       <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
         <button
           onClick={handlePolish}
@@ -308,7 +305,7 @@ export default function PostTool() {
         </button>
       </div>
 
-      {/* 润色结果 */}
+      {}
       {polishedText && (
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -342,7 +339,7 @@ export default function PostTool() {
         </div>
       )}
 
-      {/* 结果 */}
+      {}
       {result && (
         <div style={{
           marginBottom: 10, padding: '10px 12px', borderRadius: 8,
@@ -354,7 +351,7 @@ export default function PostTool() {
         </div>
       )}
 
-      {/* 成本说明 */}
+      {}
       <div style={{
         padding: '10px 12px', borderRadius: 8,
         background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.1)',

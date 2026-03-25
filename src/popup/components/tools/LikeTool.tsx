@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React, { useState, useEffect } from 'react'
 import type { LikeAutoState, LikeAutoConfig } from '@shared/types'
 
@@ -14,7 +15,7 @@ export default function LikeTool() {
           setState(res.data.state)
           setConfig(res.data.config)
         }
-      } catch { /* ignore */ }
+      } catch {  }
       setLoading(false)
     }
     fetch_()
@@ -57,7 +58,7 @@ export default function LikeTool() {
         点赞伴随
       </h3>
 
-      {/* 总开关 */}
+      {}
       <div style={{
         padding: '14px', borderRadius: 10, marginBottom: 12,
         background: config.enabled ? 'rgba(249,24,128,0.06)' : 'var(--bg-primary)',
@@ -93,7 +94,7 @@ export default function LikeTool() {
         </button>
       </div>
 
-      {/* 今日统计 */}
+      {}
       <div style={{
         padding: '12px', borderRadius: 8, marginBottom: 12,
         background: 'var(--bg-primary)', border: '1px solid var(--border)',
@@ -118,7 +119,7 @@ export default function LikeTool() {
         )}
       </div>
 
-      {/* 参数配置 */}
+      {}
       <div style={{
         padding: '12px', borderRadius: 8, marginBottom: 12,
         background: 'var(--bg-primary)', border: '1px solid var(--border)',
@@ -155,7 +156,7 @@ export default function LikeTool() {
         </label>
       </div>
 
-      {/* 说明 */}
+      {}
       <div style={{
         padding: '10px 12px', borderRadius: 8,
         background: 'rgba(249,24,128,0.05)', border: '1px solid rgba(249,24,128,0.1)',

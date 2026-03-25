@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React from 'react'
 import type { ThemeMode } from '../hooks/useTheme'
 
@@ -9,7 +10,7 @@ interface HeaderProps {
   onThemeToggle: () => void
 }
 
-// 主题图标: 太阳 / 月亮 / 自动
+
 function ThemeIcon({ mode }: { mode: ThemeMode }) {
   if (mode === 'light') {
     return (
@@ -29,7 +30,7 @@ function ThemeIcon({ mode }: { mode: ThemeMode }) {
       </svg>
     )
   }
-  // system
+  
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
@@ -47,11 +48,11 @@ export default function Header({ nodeCode, wsConnected, isBound, themeMode, onTh
       background: 'var(--bg-header)',
       borderBottom: '1px solid var(--border)',
     }}>
-      {/* Logo + 呼吸灯 */}
+      {}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 15, fontWeight: 700, color: '#ff5722' }}>xSocial</span>
         <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 500 }}>Agent</span>
-        {/* 呼吸灯 — 仅一个小圆点 */}
+        {}
         <div
           className={wsConnected ? 'breathing-light-online' : 'breathing-light-offline'}
           style={{
@@ -62,7 +63,7 @@ export default function Header({ nodeCode, wsConnected, isBound, themeMode, onTh
         />
       </div>
 
-      {/* 主题切换 */}
+      {}
       <button
         onClick={onThemeToggle}
         title={themeMode === 'light' ? '日间模式' : themeMode === 'dark' ? '夜间模式' : '跟随系统'}

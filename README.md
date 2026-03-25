@@ -69,7 +69,7 @@ Brain sends commands → Claws execute → Results fed back → Brain decides ne
 ### Option 2: Build from Source
 
 ```bash
-git clone https://github.com/XIYOUDADI/xsocial-claw.git
+git clone https://github.com/microcosmmoney/xsocial-claw.git
 cd xsocial-claw
 npm install
 npm run build

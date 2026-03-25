@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React, { useState } from 'react'
 
 interface UnboundViewProps {
@@ -30,7 +31,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  // ===== 复制识别码（无选中态，弹出提示） =====
+  
   const handleCopyCode = () => {
     if (!nodeCode) return
     navigator.clipboard.writeText(nodeCode)
@@ -38,7 +39,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
     setTimeout(() => setCopied(false), 1500)
   }
 
-  // ===== 邮箱密码登录 (走 xSocial → Microcosm 认证链) =====
+  
   const handleLogin = async () => {
     if (!email.trim() || !password) {
       setError('请输入邮箱和密码')
@@ -71,7 +72,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
     }
   }
 
-  // ===== 选择节点恢复 =====
+  
   const handleSelectNode = async (node: NodeInfo) => {
     setViewState('restoring')
     setError('')
@@ -92,7 +93,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
     }
   }
 
-  // ===== 手动输入旧节点 ID =====
+  
   const handleManualRecover = async () => {
     const code = oldCode.trim().toUpperCase()
     if (!code) return
@@ -115,7 +116,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
     }
   }
 
-  // ===== 成功: 2秒后刷新 =====
+  
   if (viewState === 'success') {
     setTimeout(() => window.location.reload(), 2000)
     return (
@@ -137,7 +138,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
     )
   }
 
-  // ===== 登录中 / 恢复中 =====
+  
   if (viewState === 'logging_in' || viewState === 'restoring') {
     return (
       <div style={{
@@ -155,7 +156,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
     )
   }
 
-  // ===== 节点选择 =====
+  
   if (viewState === 'select_node') {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px', overflowY: 'auto' }}>
@@ -240,7 +241,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
     )
   }
 
-  // ===== 初始状态（登录前）=====
+  
   return (
     <div style={{
       flex: 1, display: 'flex', flexDirection: 'column',
@@ -249,14 +250,14 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
       overflowY: 'auto',
     }}>
 
-      {/* 错误提示 */}
+      {}
       {error && (
         <p style={{ fontSize: 12, color: '#ef4444', marginBottom: 12, padding: '8px 12px', background: '#fef2f2', borderRadius: 6, width: '100%' }}>
           {error}
         </p>
       )}
 
-      {/* ===== 登录表单 ===== */}
+      {}
       {showLogin && !showManual && (
         <div style={{
           width: '100%', padding: '16px',
@@ -323,7 +324,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
         </div>
       )}
 
-      {/* ===== 手动输入旧节点 ID ===== */}
+      {}
       {showManual && !showLogin && (
         <div style={{
           width: '100%', padding: '16px',
@@ -374,10 +375,10 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
         </div>
       )}
 
-      {/* ===== 主按钮区域（登录前） ===== */}
+      {}
       {!showLogin && !showManual && (
         <>
-          {/* Logo */}
+          {}
           <div style={{
             width: 56, height: 56, borderRadius: 14,
             background: 'linear-gradient(135deg, #ff5722, #e64a19)',
@@ -394,7 +395,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
             AI 驱动的社交媒体自动化
           </p>
 
-          {/* 登录 + 注册 两个按钮 */}
+          {}
           <div style={{ display: 'flex', gap: 10, width: '100%', marginBottom: 10 }}>
             <button
               onClick={() => { setShowLogin(true); setError('') }}
@@ -425,7 +426,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
             已有账号？登录后可自动恢复节点和配置
           </p>
 
-          {/* 分隔线 */}
+          {}
           <div style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 12,
             marginBottom: 16, color: '#ccc', fontSize: 11,
@@ -435,7 +436,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
             <div style={{ flex: 1, height: 1, background: '#e0e0e5' }} />
           </div>
 
-          {/* 手动输入旧 ID */}
+          {}
           <button
             onClick={() => { setShowManual(true); setError('') }}
             style={{
@@ -447,7 +448,7 @@ export default function UnboundView({ nodeCode, wsConnected }: UnboundViewProps)
             输入节点 ID 恢复
           </button>
 
-          {/* 识别码（小字显示在底部，不突出） */}
+          {}
           {nodeCode && (
             <div style={{ marginTop: 24 }}>
               <div

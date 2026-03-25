@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React from 'react'
 import type { CurrentTask } from '../hooks/useCurrentTask'
 
@@ -43,7 +44,7 @@ function StepRow({ step }: { step: { action: string; description: string; status
 }
 
 export default function CurrentTaskPage({ task, hasXAccount }: Props) {
-  // 无任务
+  
   if (!task) {
     if (!hasXAccount) {
       return (
@@ -87,7 +88,7 @@ export default function CurrentTaskPage({ task, hasXAccount }: Props) {
     )
   }
 
-  // 有任务（运行中或已完成）
+  
   const isCompleted = task.status === 'completed' || task.status === 'aborted'
   const elapsed = (task.completedAt || Date.now()) - task.startedAt
   const minutes = Math.floor(elapsed / 60000)
@@ -95,7 +96,7 @@ export default function CurrentTaskPage({ task, hasXAccount }: Props) {
 
   return (
     <div style={{ padding: '12px 14px', flex: 1, overflowY: 'auto' }}>
-      {/* 任务头部 */}
+      {}
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         marginBottom: 10,
@@ -123,14 +124,14 @@ export default function CurrentTaskPage({ task, hasXAccount }: Props) {
         </span>
       </div>
 
-      {/* 步骤列表 — 始终显示 */}
+      {}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 12 }}>
         {task.steps.map((step, i) => (
           <StepRow key={i} step={step} />
         ))}
       </div>
 
-      {/* AI 汇总 */}
+      {}
       {task.summary && (
         <div style={{
           padding: '12px 14px', borderRadius: 10,
@@ -152,7 +153,7 @@ export default function CurrentTaskPage({ task, hasXAccount }: Props) {
         </div>
       )}
 
-      {/* 清除已完成任务 */}
+      {}
       {isCompleted && (
         <button
           onClick={async () => {

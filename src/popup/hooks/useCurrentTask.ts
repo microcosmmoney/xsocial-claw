@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import { useState, useEffect } from 'react'
 
 export interface TaskStep {
@@ -27,7 +28,7 @@ export function useCurrentTask(pollInterval = 2000) {
       try {
         const res = await chrome.runtime.sendMessage({ type: 'GET_CURRENT_TASK' })
         if (res?.success) setTask(res.data || null)
-      } catch { /* ignore */ }
+      } catch {  }
     }
     fetch_()
     const timer = setInterval(fetch_, pollInterval)

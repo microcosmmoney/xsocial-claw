@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React, { useState } from 'react'
 import type { CurrentTask } from '../hooks/useCurrentTask'
 
@@ -26,7 +27,7 @@ function TaskCard({ task }: { task: CurrentTask }) {
       background: '#fff', borderRadius: 8, border: '1px solid #e8e8ec',
       overflow: 'hidden', marginBottom: 6,
     }}>
-      {/* 摘要行（点击展开） */}
+      {}
       <div
         onClick={() => setExpanded(!expanded)}
         style={{
@@ -70,10 +71,10 @@ function TaskCard({ task }: { task: CurrentTask }) {
         </svg>
       </div>
 
-      {/* 展开详情 */}
+      {}
       {expanded && (
         <div style={{ padding: '0 12px 12px', borderTop: '1px solid #f0f0f3' }}>
-          {/* 步骤列表 */}
+          {}
           {task.steps && task.steps.length > 0 && (
             <div style={{ paddingTop: 8 }}>
               {task.steps.map((step, i) => (
@@ -88,7 +89,7 @@ function TaskCard({ task }: { task: CurrentTask }) {
             </div>
           )}
 
-          {/* AI 汇总 */}
+          {}
           {task.summary && (
             <div style={{
               marginTop: 8, padding: '8px 10px', borderRadius: 6,
@@ -120,7 +121,7 @@ export default function HistoryPage({ history }: Props) {
     )
   }
 
-  // 按日期分组
+  
   const groups: Record<string, CurrentTask[]> = {}
   for (const t of history) {
     const date = t.completedAt

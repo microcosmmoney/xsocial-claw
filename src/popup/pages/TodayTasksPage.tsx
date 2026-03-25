@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React from 'react'
 import type { CurrentTask } from '../hooks/useCurrentTask'
 

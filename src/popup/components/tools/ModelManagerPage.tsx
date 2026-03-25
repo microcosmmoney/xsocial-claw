@@ -1,7 +1,8 @@
+// Developed by AI Agent
 import React, { useState, useEffect } from 'react'
 import type { ModelManagerState, PresetModelDef, UserModelConfig } from '@shared/types'
 
-// 模型详细信息 (注册链接 + 价格 + 免费额度)
+
 const MODEL_INFO: Record<string, {
   region: 'overseas' | 'china'
   pricing: string
@@ -134,7 +135,7 @@ export default function ModelManagerPage() {
         配置自有模型后，AI 润色不再消耗平台次数。推荐先试免费模型!
       </p>
 
-      {/* 当前激活状态 */}
+      {}
       <div style={{
         padding: '10px 12px', borderRadius: 8, marginBottom: 14,
         background: modelState.activeModelId ? 'rgba(34,197,94,0.06)' : 'rgba(29,155,240,0.06)',
@@ -160,7 +161,7 @@ export default function ModelManagerPage() {
         )}
       </div>
 
-      {/* 国内模型 */}
+      {}
       <SectionTitle title="国内模型" subtitle="注册即用, 多个提供免费额度" />
       {chinaModels.map(p => (
         <ModelCard
@@ -183,7 +184,7 @@ export default function ModelManagerPage() {
         />
       ))}
 
-      {/* 国外模型 */}
+      {}
       <SectionTitle title="国外模型" subtitle="需科学上网, 部分有免费额度" />
       {overseasModels.map(p => (
         <ModelCard
@@ -209,7 +210,6 @@ export default function ModelManagerPage() {
   )
 }
 
-// ===== 子组件 =====
 
 function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -248,7 +248,7 @@ function ModelCard({ preset, info, userConfig, isActive, isEditing, keyInput, te
       background: 'var(--bg-primary)',
       border: `1px solid ${isActive ? '#22c55e' : hasError ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
     }}>
-      {/* 头部: 名称 + 标签 */}
+      {}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{preset.name}</span>
         {preset.free && (
@@ -262,13 +262,13 @@ function ModelCard({ preset, info, userConfig, isActive, isEditing, keyInput, te
         )}
       </div>
 
-      {/* 描述 + 价格 */}
+      {}
       <div style={{ fontSize: 10, color: 'var(--text-tertiary)', lineHeight: 1.5, marginBottom: 6 }}>
         {info?.pricing && <div>价格: {info.pricing}</div>}
         {info?.freeQuota && <div style={{ color: '#22c55e' }}>{info.freeQuota}</div>}
       </div>
 
-      {/* 错误提示 */}
+      {}
       {hasError && !isEditing && (
         <div style={{
           padding: '6px 8px', borderRadius: 6, marginBottom: 6,
@@ -279,7 +279,7 @@ function ModelCard({ preset, info, userConfig, isActive, isEditing, keyInput, te
         </div>
       )}
 
-      {/* 测试结果 */}
+      {}
       {testResult && (
         <div style={{
           padding: '6px 8px', borderRadius: 6, marginBottom: 6,
@@ -290,7 +290,7 @@ function ModelCard({ preset, info, userConfig, isActive, isEditing, keyInput, te
         </div>
       )}
 
-      {/* Key 编辑区 */}
+      {}
       {isEditing ? (
         <div style={{ marginBottom: 6 }}>
           <input
@@ -335,7 +335,7 @@ function ModelCard({ preset, info, userConfig, isActive, isEditing, keyInput, te
         </div>
       )}
 
-      {/* 注册引导 */}
+      {}
       {info?.registerTip && !isEditing && (
         <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>
           {info.registerTip}

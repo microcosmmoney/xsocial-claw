@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import { useState, useEffect, useCallback } from 'react'
 
 export interface XUserInfo {
@@ -38,7 +39,7 @@ export function useNodeStatus(pollInterval = 3000) {
       if (res?.success && res.data) {
         setStatus(res.data)
       }
-    } catch { /* popup may be closed */ }
+    } catch {  }
     setLoading(false)
   }, [])
 

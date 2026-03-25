@@ -1,3 +1,4 @@
+// Developed by AI Agent
 import React, { useState, useEffect } from 'react'
 import type { FollowMode, FollowSessionState, FollowAutoConfig } from '@shared/types'
 
@@ -12,7 +13,7 @@ export default function FollowTool() {
   const [config, setConfig] = useState<FollowAutoConfig | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // 初始加载 + 轮询
+  
   useEffect(() => {
     const fetch_ = async () => {
       try {
@@ -21,7 +22,7 @@ export default function FollowTool() {
           setState(res.data.state)
           setConfig(res.data.config)
         }
-      } catch { /* ignore */ }
+      } catch {  }
       setLoading(false)
     }
     fetch_()
@@ -74,7 +75,7 @@ export default function FollowTool() {
         关注自动化
       </h3>
 
-      {/* 状态卡片 */}
+      {}
       <div style={{
         padding: '12px', borderRadius: 10, marginBottom: 12,
         background: isRunning ? 'rgba(34,197,94,0.06)' : 'var(--bg-primary)',
@@ -94,7 +95,7 @@ export default function FollowTool() {
           </span>
         </div>
 
-        {/* 进度条: 今日 */}
+        {}
         <div style={{ marginBottom: 6 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 3 }}>
             <span>今日进度</span>
@@ -109,7 +110,7 @@ export default function FollowTool() {
           </div>
         </div>
 
-        {/* 进度条: 本次会话 */}
+        {}
         {isRunning && (
           <div style={{ marginBottom: 6 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 3 }}>
@@ -126,14 +127,14 @@ export default function FollowTool() {
           </div>
         )}
 
-        {/* 当前阶段 */}
+        {}
         {state.currentPhase && (
           <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0' }}>
             {state.currentPhase}
           </p>
         )}
 
-        {/* 下次时间 */}
+        {}
         {state.nextSessionTime && state.status === 'waiting' && (
           <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 4 }}>
             下一轮: {new Date(state.nextSessionTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
@@ -141,7 +142,7 @@ export default function FollowTool() {
         )}
       </div>
 
-      {/* 模式选择 */}
+      {}
       <div style={{ marginBottom: 12 }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
           关注模式
@@ -181,7 +182,7 @@ export default function FollowTool() {
         </div>
       </div>
 
-      {/* 参数配置 (折叠) */}
+      {}
       <details style={{ marginBottom: 12 }}>
         <summary style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', marginBottom: 8 }}>
           高级配置
@@ -237,7 +238,7 @@ export default function FollowTool() {
         </div>
       </details>
 
-      {/* 启动/暂停按钮 */}
+      {}
       {isActive ? (
         <button
           onClick={handlePause}
@@ -266,7 +267,7 @@ export default function FollowTool() {
         </button>
       )}
 
-      {/* 操作日志 */}
+      {}
       {state.log.length > 0 && (
         <div style={{ marginTop: 12 }}>
           <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
@@ -299,7 +300,7 @@ export default function FollowTool() {
         </div>
       )}
 
-      {/* 说明 */}
+      {}
       <div style={{
         marginTop: 12, padding: '10px 12px', borderRadius: 8,
         background: 'rgba(255,87,34,0.05)', border: '1px solid rgba(255,87,34,0.1)',
@@ -314,7 +315,6 @@ export default function FollowTool() {
   )
 }
 
-// ===== 子组件 =====
 
 function ConfigSlider({ label, value, min, max, step, onChange, disabled }: {
   label: string; value: number; min: number; max: number; step: number;
