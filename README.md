@@ -85,12 +85,33 @@ The `dist/` directory is the loadable extension. Follow steps 5-7 above.
 - Webpack 5
 - WebSocket (persistent connection)
 
-## Security
+## Security & Environment Recommendations
 
 - ✅ Runs locally in your browser — **no passwords or sensitive data uploaded**
 - ✅ All operations execute locally; the server only sends task instructions
 - ✅ Fully open source — anyone can audit the code
 - ✅ Communication secured with HMAC-SHA256 signed token authentication
+
+### Recommended Installation Environment
+
+For your privacy and account safety, please follow these guidelines:
+
+| Recommendation | Details |
+|---|---|
+| **Best: Dedicated clean machine** | Use a low-spec computer exclusively for this extension. Physical isolation is the safest approach. |
+| **Good: Separate browser profile** | Create a dedicated Chrome profile or install a standalone browser, fully isolated from your daily browsing environment. |
+| **Avoid: Virtual machines** | VMs lack genuine hardware fingerprints, which may trigger platform risk detection and result in account suspension. |
+| **Never: Daily-use computer** | Do not install this extension directly in your personal daily-use browser. Always ensure complete environment isolation. |
+
+## Disclaimer
+
+1. **Not listed on any official app store.** This extension (xSocial Claw) is open-source community software. It is **not published on Chrome Web Store** or any official marketplace. Users must manually install it in Developer Mode and assume all associated risks.
+
+2. **Third-party platform terms.** Using this extension may involve actions on third-party platforms (e.g., Twitter/X). Users are responsible for understanding and complying with those platforms' terms of service. xSocial assumes no liability for any account restrictions or suspensions resulting from violations of third-party platform rules.
+
+3. **Local execution only.** This extension runs entirely within your browser. It does not upload your passwords or sensitive credentials. However, for safety, we **strongly recommend** installing and using it in an environment isolated from your personal daily-use setup.
+
+4. **Use at your own risk.** By downloading and installing this extension, you acknowledge that you have read and understood the above terms, and agree to assume all risks associated with its use.
 
 ## License
 
