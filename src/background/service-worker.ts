@@ -102,6 +102,9 @@ let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 let activeTabId: number | null = null
 
+// ===== 推特资料缓存 (由 content script DOM 感知驱动) =====
+let cachedFullProfile: Record<string, unknown> | null = null
+
 const EXT_VERSION = chrome.runtime.getManifest().version
 
 async function connectWS() {
@@ -209,9 +212,22 @@ function startHeartbeat() {
         configVersion = store.toolbox_config_version || 0
       } catch {  }
 
+      // 携带 content script 感知到的推特资料缓存 (无 API 调用)
+      if (!cachedFullProfile) {
+        try {
+          const cached = await chrome.storage.local.get('x_profile_full')
+          cachedFullProfile = cached.x_profile_full || null
+        } catch { /* ignore */ }
+      }
+
       ws.send(JSON.stringify({
         type: 'ext:heartbeat',
-        payload: { timestamp: Date.now(), version: EXT_VERSION, configVersion },
+        payload: {
+          timestamp: Date.now(),
+          version: EXT_VERSION,
+          configVersion,
+          ...(cachedFullProfile ? { xProfile: cachedFullProfile } : {}),
+        },
       }))
     }
   }, 10_000)  
@@ -633,6 +649,17 @@ async function handleMessage(
 
     case 'URL_CHANGED': {
       logger.debug('[SW] URL changed:', message.payload?.url)
+      return { success: true }
+    }
+
+    case 'PROFILE_CHANGED': {
+      // Content script 从页面 DOM 感知到用户资料变化 (零 API 调用)
+      const p = message.payload
+      if (p?.xScreenName) {
+        cachedFullProfile = p
+        await chrome.storage.local.set({ x_profile_full: p, x_profile_refreshed_at: Date.now() })
+        logger.info(`[SW] 资料变化 (DOM): @${p.xScreenName} followers=${p.followersCount || '?'}`)
+      }
       return { success: true }
     }
 
